@@ -1,0 +1,32 @@
+{
+  "metadata": {
+    "name": "t",
+    "category": "embodiment",
+    "description": "",
+    "tags": [],
+    "author": "",
+    "version": "1.0",
+    "created_date": "2025-07-21T00:14:48.782651",
+    "modified_date": "2025-07-21T00:15:06.090315"
+  },
+  "waveform_data": null,
+  "parameter_modifications": {
+    "intensity_multiplier": 1.0,
+    "frequency_shift": 0.0,
+    "duration_scale": 1.0,
+    "amplitude_offset": 0.0,
+    "custom_envelope": null,
+    "attack_time": 0.0,
+    "decay_time": 0.0,
+    "sustain_level": 1.0,
+    "release_time": 0.0
+  },
+  "actuator_mapping": {
+    "active_actuators": [],
+    "pattern_type": "simultaneous",
+    "timing_offsets": {},
+    "intensity_scaling": {},
+    "zones": []
+  },
+  "original_haptic_file": null
+}

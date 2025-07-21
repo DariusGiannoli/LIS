@@ -1,0 +1,22 @@
+{
+  "Test": {
+    "name": "Test",
+    "description": "testing to test",
+    "timestamp": "2025-07-18T10:37:52.083423",
+    "config": {
+      "pattern_type": "Wave",
+      "actuators": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "intensity": 10,
+      "frequency": 4,
+      "duration": 2.0,
+      "specific_parameters": {
+        "wave_speed": 0.5
+      }
+    }
+  }
+}
