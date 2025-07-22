@@ -7,6 +7,7 @@ SOA implementation exactly matching the Tactile Brush paper methodology:
 - SOA = Inter-stimulus onset asynchrony 
 - Duration and SOA relationship from psychophysical experiments
 - Proper overlapping for continuous apparent motion
+- Modified for 5 actuators instead of 3
 """
 import sys
 import time
@@ -28,8 +29,8 @@ except ImportError:
     print("Warning: python_serial_api not found.")
     python_serial_api = None
 
-# Your 3-actuator configuration
-ACTUATORS = [0, 1, 2]
+# Your 5-actuator configuration
+ACTUATORS = [0, 1, 2, 3, 4]
 
 # Paper's psychophysical parameters (from Figure 4)
 PAPER_PARAMS = {
@@ -236,7 +237,7 @@ class PaperSOAVisualization(QWidget):
     
     def __init__(self):
         super().__init__()
-        self.setMinimumSize(700, 250)
+        self.setMinimumSize(700, 300)  # Increased height for 5 actuators
         self.steps = []
         self.warnings = []
         
@@ -269,7 +270,7 @@ class PaperSOAVisualization(QWidget):
         font.setBold(True)
         font.setPointSize(12)
         painter.setFont(font)
-        painter.drawText(margin, 25, "SOA Timing Visualization")
+        painter.drawText(margin, 25, "SOA Timing Visualization (5 Actuators)")
         
         # Draw time axis
         painter.setPen(QPen(QColor(0, 0, 0), 2))
@@ -287,7 +288,14 @@ class PaperSOAVisualization(QWidget):
         actuator_ids = sorted(set(step.actuator_id for step in self.steps))
         lane_height = (height - 40) / len(actuator_ids)
         
-        colors = [QColor(100, 150, 255), QColor(255, 150, 100), QColor(150, 255, 100)]
+        # Extended color palette for 5 actuators
+        colors = [
+            QColor(100, 150, 255),  # Blue
+            QColor(255, 150, 100),  # Orange  
+            QColor(150, 255, 100),  # Green
+            QColor(255, 100, 150),  # Pink
+            QColor(150, 100, 255)   # Purple
+        ]
         
         for step in self.steps:
             actuator_idx = actuator_ids.index(step.actuator_id)
@@ -375,7 +383,7 @@ class PaperSOAGUI(QWidget):
         layout = QVBoxLayout(self)
         
         # Title
-        title = QLabel("Paper-Accurate SOA Implementation")
+        title = QLabel("Paper-Accurate SOA Implementation (5 Actuators)")
         title.setStyleSheet("font-weight: bold; font-size: 16px; color: #2E86AB;")
         layout.addWidget(title)
         
@@ -410,7 +418,7 @@ class PaperSOAGUI(QWidget):
         # Duration with paper's range
         self.duration_spin = QSpinBox()
         self.duration_spin.setRange(40, 2000)   # Extended range to allow 1 second
-        self.duration_spin.setValue(1000)       # 1 second (1000ms) default
+        self.duration_spin.setValue(80)         # Changed to 80ms (within paper's range)
         self.duration_spin.setSuffix(" ms")
         self.duration_spin.valueChanged.connect(self.update_analysis)
         paper_layout.addRow("Duration (paper: 40-160ms, extended):", self.duration_spin)
@@ -433,25 +441,44 @@ class PaperSOAGUI(QWidget):
         layout.addWidget(paper_group)
         
         # Test Sequences
-        test_group = QGroupBox("Test Sequences")
+        test_group = QGroupBox("Test Sequences (5 Actuators)")
         test_layout = QVBoxLayout(test_group)
         
-        # Quick tests
-        quick_layout = QHBoxLayout()
+        # Quick tests - first row
+        quick_layout1 = QHBoxLayout()
         
-        self.left_right_btn = QPushButton("Left→Right\n(0→1→2)")
-        self.right_left_btn = QPushButton("Right→Left\n(2→1→0)")
+        self.left_right_btn = QPushButton("Left→Right\n(0→1→2→3→4)")
+        self.right_left_btn = QPushButton("Right→Left\n(4→3→2→1→0)")
         self.preview_btn = QPushButton("Preview Only\n(no execution)")
         
-        self.left_right_btn.clicked.connect(lambda: self.test_sequence([0, 1, 2]))
-        self.right_left_btn.clicked.connect(lambda: self.test_sequence([2, 1, 0]))
-        self.preview_btn.clicked.connect(lambda: self.preview_sequence([0, 1, 2]))
+        self.left_right_btn.clicked.connect(lambda: self.test_sequence([0, 1, 2, 3, 4]))
+        self.right_left_btn.clicked.connect(lambda: self.test_sequence([4, 3, 2, 1, 0]))
+        self.preview_btn.clicked.connect(lambda: self.preview_sequence([0, 1, 2, 3, 4]))
+        
+        quick_layout1.addWidget(self.left_right_btn)
+        quick_layout1.addWidget(self.right_left_btn)
+        quick_layout1.addWidget(self.preview_btn)
+        
+        # Additional test patterns - second row
+        quick_layout2 = QHBoxLayout()
+        
+        self.odd_even_btn = QPushButton("Odd→Even\n(0→2→4→1→3)")
+        self.center_out_btn = QPushButton("Center Out\n(2→1→3→0→4)")
+        self.bounce_btn = QPushButton("Bounce\n(0→4→0→4)")
+        
+        self.odd_even_btn.clicked.connect(lambda: self.test_sequence([0, 2, 4, 1, 3]))
+        self.center_out_btn.clicked.connect(lambda: self.test_sequence([2, 1, 3, 0, 4]))
+        self.bounce_btn.clicked.connect(lambda: self.test_sequence([0, 4, 0, 4]))
+        
+        quick_layout2.addWidget(self.odd_even_btn)
+        quick_layout2.addWidget(self.center_out_btn)
+        quick_layout2.addWidget(self.bounce_btn)
         
         # Style buttons
         button_style = """
         QPushButton {
             padding: 10px;
-            font-size: 11px;
+            font-size: 10px;
             border-radius: 5px;
             background-color: #E8F4FD;
             border: 2px solid #2E86AB;
@@ -461,15 +488,12 @@ class PaperSOAGUI(QWidget):
             color: white;
         }
         """
-        self.left_right_btn.setStyleSheet(button_style)
-        self.right_left_btn.setStyleSheet(button_style)
-        self.preview_btn.setStyleSheet(button_style)
+        for btn in [self.left_right_btn, self.right_left_btn, self.preview_btn,
+                   self.odd_even_btn, self.center_out_btn, self.bounce_btn]:
+            btn.setStyleSheet(button_style)
         
-        quick_layout.addWidget(self.left_right_btn)
-        quick_layout.addWidget(self.right_left_btn)
-        quick_layout.addWidget(self.preview_btn)
-        
-        test_layout.addLayout(quick_layout)
+        test_layout.addLayout(quick_layout1)
+        test_layout.addLayout(quick_layout2)
         layout.addWidget(test_group)
         
         # Visualization
@@ -501,6 +525,7 @@ Paper's Key Finding: For continuous apparent motion, stimuli MUST overlap in tim
 • SOA = 0.32 × duration + 47.3 (from psychophysical experiments)
 • Red regions show overlaps - these create the motion illusion
 • No overlap = discrete sensations, not smooth motion
+• Now testing with 5 actuators for longer motion sequences
         """.strip())
         layout.addWidget(explanation)
         
@@ -569,11 +594,11 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     
     window = QMainWindow()
-    window.setWindowTitle("Paper-Accurate SOA Implementation")
+    window.setWindowTitle("Paper-Accurate SOA Implementation (5 Actuators)")
     
     widget = PaperSOAGUI()
     window.setCentralWidget(widget)
-    window.resize(900, 800)
+    window.resize(900, 900)  # Increased height for additional buttons
     window.show()
     
     sys.exit(app.exec())
