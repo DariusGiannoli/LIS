@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-Complete Enhanced Interactive Tactile Pattern Creator with Trajectory Support
-Park et al. (2016) Implementation with Smooth Trajectory Drawing
+Enhanced Interactive Tactile Pattern Creator v3.0 with Waveform Support
+Park et al. (2016) Implementation with Trajectory Support and Waveform Library
 
 Features:
+- Larger actuator visualization within same window size
+- Multiple waveform types (Sine, Square, Saw, Triangle, Chirp, FM, PWM, Noise)
+- Pattern recording and saving to folder
 - 3-actuator phantom sensations for arbitrary 2D positioning
 - Trajectory drawing with automatic phantom creation
 - Non-overlapping SOA constraints (duration ≤ 70ms)
-- Smooth motion along curved paths
-- Real-time visualization and interaction
 """
 import sys
 import time
@@ -21,10 +22,15 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QSpinBox, QDoubleSpinBox, QFormLayout, QGroupBox,
     QApplication, QMainWindow, QComboBox, QTextEdit, QSlider,
-    QCheckBox, QTabWidget, QFileDialog, QListWidget, QMessageBox
+    QCheckBox, QTabWidget, QFileDialog, QListWidget, QMessageBox,
+    QSplitter, QScrollArea
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QPointF
 from PyQt6.QtGui import QPainter, QPen, QBrush, QColor, QFont, QMouseEvent
+
+# Import waveform generation
+import numpy as np
+from scipy import signal
 
 # Import your API (optional)
 try:
@@ -32,6 +38,13 @@ try:
 except ImportError:
     print("Warning: python_serial_api not found. Running in simulation mode.")
     python_serial_api = None
+
+# Import event data model for waveforms
+try:
+    from event_data_model import HapticEvent, EventCategory
+except ImportError:
+    print("Warning: event_data_model not found. Using basic waveforms.")
+    HapticEvent = None
 
 # 4x4 Grid Configuration
 ACTUATORS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
@@ -54,6 +67,21 @@ PAPER_PARAMS = {
     'OPTIMAL_FREQ': 250,  # 250Hz optimal frequency
     'SAMPLING_RATE': 70,  # Maximum sampling rate 70ms
 }
+
+# Waveform types available
+WAVEFORM_TYPES = [
+    "Sine", "Square", "Saw", "Triangle", 
+    "Chirp", "FM", "PWM", "Noise"
+]
+
+# Patterns folder
+PATTERNS_FOLDER = "saved_patterns"
+
+def ensure_patterns_folder():
+    """Ensure patterns folder exists"""
+    if not os.path.exists(PATTERNS_FOLDER):
+        os.makedirs(PATTERNS_FOLDER)
+        print(f"📁 Created patterns folder: {PATTERNS_FOLDER}")
 
 def get_grid_position(actuator_id: int, spacing_mm: float) -> Tuple[float, float]:
     """Convert actuator ID to (x, y) position in mm for user's 4x4 layout"""
@@ -92,12 +120,43 @@ def point_in_triangle(p: Tuple[float, float], a: Tuple[float, float],
     
     return not (has_neg and has_pos)
 
+def generate_waveform(waveform_type: str, frequency: float = 250.0, 
+                     duration: float = 0.06, sample_rate: float = 1000.0) -> np.ndarray:
+    """Generate waveform signal based on type"""
+    t = np.linspace(0.0, duration, int(sample_rate * duration), endpoint=False)
+    
+    if waveform_type == "Sine":
+        y = np.sin(2 * np.pi * frequency * t)
+    elif waveform_type == "Square":
+        y = np.sign(np.sin(2 * np.pi * frequency * t))
+    elif waveform_type == "Saw":
+        y = signal.sawtooth(2 * np.pi * frequency * t, 1.0)
+    elif waveform_type == "Triangle":
+        y = signal.sawtooth(2 * np.pi * frequency * t, 0.5)
+    elif waveform_type == "Chirp":
+        y = signal.chirp(t, f0=frequency, t1=duration, f1=frequency * 4, method="linear")
+    elif waveform_type == "FM":
+        carr = 2 * np.pi * frequency * t
+        mod = np.sin(2 * np.pi * frequency * 0.25 * t)
+        y = np.sin(carr + 2 * mod)
+    elif waveform_type == "PWM":
+        y = signal.square(2 * np.pi * frequency * t, duty=0.5)
+    elif waveform_type == "Noise":
+        rng = np.random.default_rng()
+        y = rng.uniform(-1.0, 1.0, size=t.shape)
+    else:
+        # Default to sine
+        y = np.sin(2 * np.pi * frequency * t)
+    
+    return np.clip(y, -1.0, 1.0)
+
 @dataclass
 class SOAStep:
     actuator_id: int
     onset_time: float
     duration: float
     intensity: int
+    waveform_type: str = "Sine"
 
 @dataclass
 class PatternStep:
@@ -105,6 +164,7 @@ class PatternStep:
     timestamp: float
     duration: float
     intensity: int
+    waveform_type: str = "Sine"
 
 @dataclass
 class TactilePattern:
@@ -112,13 +172,15 @@ class TactilePattern:
     steps: List[PatternStep]
     total_duration: float
     created_timestamp: float
+    description: str = ""
 
     def to_dict(self):
         return {
             'name': self.name,
             'steps': [asdict(step) for step in self.steps],
             'total_duration': self.total_duration,
-            'created_timestamp': self.created_timestamp
+            'created_timestamp': self.created_timestamp,
+            'description': self.description
         }
     
     @classmethod
@@ -128,7 +190,8 @@ class TactilePattern:
             name=data['name'],
             steps=steps,
             total_duration=data['total_duration'],
-            created_timestamp=data['created_timestamp']
+            created_timestamp=data['created_timestamp'],
+            description=data.get('description', '')
         )
 
 @dataclass
@@ -145,16 +208,21 @@ class Enhanced3ActuatorPhantom:
     required_intensity_3: int
     triangle_area: float
     energy_efficiency: float
-    timestamp: float = 0.0  # For trajectory phantoms
+    timestamp: float = 0.0
+    waveform_type: str = "Sine"
 
 class EnhancedTactileEngine:
-    """Enhanced engine with 3-actuator phantoms and trajectory support"""
+    """Enhanced engine with 3-actuator phantoms, trajectory support, and waveforms"""
     
     def __init__(self, api=None, actuator_spacing_mm=63):
         self.api = api
         self.actuator_spacing = actuator_spacing_mm
         self.use_custom_positions = True
         self.custom_positions = {}
+        
+        # Waveform settings
+        self.current_waveform_type = "Sine"
+        self.waveform_frequency = 250.0
         
         # SOA state
         self.soa_steps = []
@@ -168,11 +236,11 @@ class EnhancedTactileEngine:
         self.enhanced_phantoms = []
         self.actuator_triangles = []
         
-        # Trajectory state for Park et al. path following
-        self.current_trajectory = []  # Raw trajectory points
-        self.trajectory_phantoms = []  # Phantoms created from trajectory
-        self.trajectory_mode = False  # Toggle for trajectory creation mode
-        self.trajectory_sampling_rate = 70  # ms, respecting Park et al. constraints
+        # Trajectory state
+        self.current_trajectory = []
+        self.trajectory_phantoms = []
+        self.trajectory_mode = False
+        self.trajectory_sampling_rate = 70
         
         # Pattern recording state
         self.is_recording = False
@@ -196,6 +264,18 @@ class EnhancedTactileEngine:
         self.load_user_custom_positions()
         self.update_grid_positions()
         self.compute_actuator_triangles()
+        ensure_patterns_folder()
+    
+    def set_waveform_type(self, waveform_type: str):
+        """Set the current waveform type"""
+        if waveform_type in WAVEFORM_TYPES:
+            self.current_waveform_type = waveform_type
+            print(f"🌊 Waveform set to: {waveform_type}")
+    
+    def set_waveform_frequency(self, frequency: float):
+        """Set the waveform frequency"""
+        self.waveform_frequency = max(50.0, min(1000.0, frequency))
+        print(f"🎵 Waveform frequency set to: {self.waveform_frequency}Hz")
     
     def load_user_custom_positions(self):
         """Load the user's specific custom positions"""
@@ -212,8 +292,6 @@ class EnhancedTactileEngine:
         """Systematic triangulation for smooth phantom motion"""
         self.actuator_triangles = []
         positions = self.actuator_positions
-        
-        print(f"🔺 Computing systematic triangulation for 4x4 grid...")
         
         triangles_added = 0
         
@@ -422,7 +500,8 @@ class EnhancedTactileEngine:
             required_intensity_2=intensities[1],
             required_intensity_3=intensities[2],
             triangle_area=triangle['area'],
-            energy_efficiency=efficiency
+            energy_efficiency=efficiency,
+            waveform_type=self.current_waveform_type
         )
         
         self.enhanced_phantoms.append(phantom)
@@ -456,7 +535,117 @@ class EnhancedTactileEngine:
         if hasattr(self, 'actuator_positions'):
             self.compute_actuator_triangles()
     
-    # Trajectory methods
+    # Recording methods
+    def start_recording(self, pattern_name: str):
+        """Start recording a pattern"""
+        self.is_recording = True
+        self.recording_start_time = time.time() * 1000
+        self.current_pattern_steps = []
+        self.current_pattern_name = pattern_name
+        print(f"🔴 Recording started: {pattern_name}")
+    
+    def stop_recording(self) -> Optional[TactilePattern]:
+        """Stop recording and return the pattern"""
+        if not self.is_recording:
+            return None
+        
+        self.is_recording = False
+        current_time = time.time() * 1000
+        total_duration = current_time - self.recording_start_time
+        
+        pattern = TactilePattern(
+            name=self.current_pattern_name,
+            steps=self.current_pattern_steps.copy(),
+            total_duration=total_duration,
+            created_timestamp=time.time(),
+            description=f"Recorded pattern with {len(self.current_pattern_steps)} steps"
+        )
+        
+        print(f"⏹️ Recording stopped: {len(self.current_pattern_steps)} steps recorded")
+        return pattern
+    
+    def add_recording_step(self, actuator_id: int, intensity: int):
+        """Add a step to the current recording"""
+        if not self.is_recording:
+            return
+        
+        current_time = time.time() * 1000
+        timestamp = current_time - self.recording_start_time
+        
+        step = PatternStep(
+            actuator_id=actuator_id,
+            timestamp=timestamp,
+            duration=self.pattern_duration,
+            intensity=intensity,
+            waveform_type=self.current_waveform_type
+        )
+        
+        self.current_pattern_steps.append(step)
+        print(f"📝 Recorded step {len(self.current_pattern_steps)}: Actuator {actuator_id}, Intensity {intensity}, Time {timestamp:.1f}ms")
+    
+    def save_pattern(self, pattern: TactilePattern) -> bool:
+        """Save pattern to file"""
+        ensure_patterns_folder()
+        filename = f"{pattern.name.replace(' ', '_')}.json"
+        filepath = os.path.join(PATTERNS_FOLDER, filename)
+        
+        try:
+            with open(filepath, 'w') as f:
+                json.dump(pattern.to_dict(), f, indent=2)
+            
+            self.saved_patterns[pattern.name] = pattern
+            print(f"💾 Pattern saved: {filepath}")
+            return True
+        except Exception as e:
+            print(f"❌ Failed to save pattern: {e}")
+            return False
+    
+    def load_pattern(self, filepath: str) -> Optional[TactilePattern]:
+        """Load pattern from file"""
+        try:
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+            
+            pattern = TactilePattern.from_dict(data)
+            self.saved_patterns[pattern.name] = pattern
+            print(f"📂 Pattern loaded: {pattern.name}")
+            return pattern
+        except Exception as e:
+            print(f"❌ Failed to load pattern: {e}")
+            return None
+    
+    def get_saved_patterns(self) -> List[str]:
+        """Get list of saved pattern files"""
+        ensure_patterns_folder()
+        pattern_files = []
+        
+        for filename in os.listdir(PATTERNS_FOLDER):
+            if filename.endswith('.json'):
+                pattern_files.append(filename)
+        
+        return sorted(pattern_files)
+    
+    def play_pattern(self, pattern: TactilePattern):
+        """Play a saved pattern"""
+        if not pattern.steps:
+            return
+        
+        soa_steps = []
+        for step in pattern.steps:
+            soa_step = SOAStep(
+                actuator_id=step.actuator_id,
+                onset_time=step.timestamp,
+                duration=step.duration,
+                intensity=step.intensity,
+                waveform_type=step.waveform_type
+            )
+            soa_steps.append(soa_step)
+        
+        soa_steps.sort(key=lambda step: step.onset_time)
+        self.execute_soa_sequence(soa_steps)
+        print(f"▶️ Playing pattern: {pattern.name} ({len(pattern.steps)} steps)")
+    
+    # Trajectory methods (unchanged from original)
     def start_trajectory_mode(self):
         """Enable trajectory drawing mode"""
         self.trajectory_mode = True
@@ -587,7 +776,8 @@ class EnhancedTactileEngine:
                     actuator_id=phys_id,
                     onset_time=phantom.timestamp,
                     duration=self.pattern_duration,
-                    intensity=intensity
+                    intensity=intensity,
+                    waveform_type=phantom.waveform_type
                 )
                 soa_steps.append(soa_step)
         
@@ -614,7 +804,7 @@ class EnhancedTactileEngine:
         actual_rate = min(rate_ms, soa)
         self.trajectory_sampling_rate = actual_rate
     
-    # Mouse interaction and other methods
+    # Mouse interaction methods
     def on_mouse_hover(self, target_id: int, is_phantom: bool = False):
         """Handle mouse hover over actuator or phantom"""
         current_target = f"{'P' if is_phantom else 'A'}{target_id}"
@@ -638,12 +828,33 @@ class EnhancedTactileEngine:
                     if success1 and success2 and success3:
                         self.mouse_vibration_active = True
                         self.hover_timer.start(self.pattern_duration)
+                        
+                        # Record phantom activation if recording is active
+                        if self.is_recording:
+                            self.add_recording_step(phantom.physical_actuator_1, phantom.required_intensity_1)
+                            self.add_recording_step(phantom.physical_actuator_2, phantom.required_intensity_2)
+                            self.add_recording_step(phantom.physical_actuator_3, phantom.required_intensity_3)
             else:
                 success = self.api.send_command(target_id, self.pattern_intensity, freq, 1)
                 if success:
                     self.mouse_vibration_active = True
                     self.hover_timer.start(self.pattern_duration)
+                    
+                    # Record actuator activation if recording is active
+                    if self.is_recording:
+                        self.add_recording_step(target_id, self.pattern_intensity)
         else:
+            # Simulation mode - still record for testing
+            if not is_phantom and self.is_recording:
+                self.add_recording_step(target_id, self.pattern_intensity)
+                print(f"📝 Recorded (simulation): Actuator {target_id}, Intensity {self.pattern_intensity}")
+            elif is_phantom and self.is_recording and target_id < len(self.enhanced_phantoms):
+                phantom = self.enhanced_phantoms[target_id]
+                self.add_recording_step(phantom.physical_actuator_1, phantom.required_intensity_1)
+                self.add_recording_step(phantom.physical_actuator_2, phantom.required_intensity_2)
+                self.add_recording_step(phantom.physical_actuator_3, phantom.required_intensity_3)
+                print(f"📝 Recorded (simulation): Phantom {target_id} -> Actuators [{phantom.physical_actuator_1}, {phantom.physical_actuator_2}, {phantom.physical_actuator_3}]")
+            
             self.mouse_vibration_active = False
     
     def on_mouse_leave(self):
@@ -732,7 +943,7 @@ class EnhancedTactileEngine:
         self.trajectory_phantoms = []
 
 class EnhancedTactileVisualization(QWidget):
-    """Enhanced visualization with trajectory drawing support"""
+    """Enhanced visualization with larger layout and trajectory drawing support"""
     
     actuator_hovered = pyqtSignal(int)
     phantom_hovered = pyqtSignal(int)
@@ -741,13 +952,13 @@ class EnhancedTactileVisualization(QWidget):
     
     def __init__(self):
         super().__init__()
-        self.setMinimumSize(400, 400)
+        self.setMinimumSize(600, 500)  # Increased minimum size
         self.setMouseTracking(True)
         self.engine = None
         self.actuator_screen_positions = {}
         self.phantom_screen_positions = {}
-        self.hover_radius = 20
-        self.phantom_hover_radius = 25
+        self.hover_radius = 25  # Increased hover radius
+        self.phantom_hover_radius = 30  # Increased phantom hover radius
         self.show_triangles = False
         
         # Trajectory drawing state
@@ -848,19 +1059,19 @@ class EnhancedTactileVisualization(QWidget):
         min_x, max_x = min(x_coords), max(x_coords)
         min_y, max_y = min(y_coords), max(y_coords)
         
-        margin = 60
+        margin = 30  # Reduced margin for more space
         available_width = self.width() - 2 * margin
-        available_height = self.height() - 2 * margin - 120
+        available_height = self.height() - 2 * margin - 60  # Reduced title space
         
         data_width = max_x - min_x if max_x > min_x else 100
         data_height = max_y - min_y if max_y > min_y else 100
         
         scale_x = available_width / data_width if data_width > 0 else 1
         scale_y = available_height / data_height if data_height > 0 else 1
-        scale = min(scale_x, scale_y) * 0.8
+        scale = min(scale_x, scale_y) * 0.9  # Increased scale factor
         
         physical_x = (screen_pos.x() - margin) / scale + min_x
-        physical_y = (screen_pos.y() - margin - 25) / scale + min_y
+        physical_y = (screen_pos.y() - margin - 40) / scale + min_y
         
         return (physical_x, physical_y)
     
@@ -899,34 +1110,43 @@ class EnhancedTactileVisualization(QWidget):
         min_x, max_x = min(x_coords), max(x_coords)
         min_y, max_y = min(y_coords), max(y_coords)
         
-        margin = 60
+        margin = 30  # Reduced margin
         available_width = self.width() - 2 * margin
-        available_height = self.height() - 2 * margin - 120
+        available_height = self.height() - 2 * margin - 60  # Reduced title space
         
         data_width = max_x - min_x if max_x > min_x else 100
         data_height = max_y - min_y if max_y > min_y else 100
         
         scale_x = available_width / data_width if data_width > 0 else 1
         scale_y = available_height / data_height if data_height > 0 else 1
-        scale = min(scale_x, scale_y) * 0.8
+        scale = min(scale_x, scale_y) * 0.9  # Increased scale factor
         
         def pos_to_screen(pos):
             screen_x = margin + (pos[0] - min_x) * scale
-            screen_y = margin + 25 + (pos[1] - min_y) * scale
+            screen_y = margin + 40 + (pos[1] - min_y) * scale
             return (screen_x, screen_y)
         
         self.actuator_screen_positions = {}
         self.phantom_screen_positions = {}
         
-        # Title
+        # Title (smaller)
         painter.setPen(QPen(QColor(0, 0, 0)))
         font = QFont()
         font.setBold(True)
-        font.setPointSize(12)
+        font.setPointSize(10)  # Smaller font
         painter.setFont(font)
         
-        title_text = "🎨 Enhanced Tactile with Trajectory Creation (Park et al.)"
+        title_text = f"🎨 Enhanced Tactile v3.0 - {self.engine.current_waveform_type} Waveform"
         painter.drawText(margin, 20, title_text)
+        
+        # Recording indicator
+        if self.engine.is_recording:
+            painter.setPen(QPen(QColor(255, 0, 0)))
+            font.setBold(True)
+            font.setPointSize(12)
+            painter.setFont(font)
+            step_count = len(self.engine.current_pattern_steps)
+            painter.drawText(self.width() - 200, 20, f"🔴 REC ({step_count} steps)")
         
         # Draw trajectory if being drawn or completed
         if self.engine and self.engine.current_trajectory:
@@ -976,7 +1196,7 @@ class EnhancedTactileVisualization(QWidget):
                 painter.setBrush(QBrush(color))
                 painter.drawPolygon(points)
         
-        # Draw actuators
+        # Draw actuators (larger)
         for actuator_id in ACTUATORS:
             if actuator_id not in self.engine.actuator_positions:
                 continue
@@ -1004,23 +1224,23 @@ class EnhancedTactileVisualization(QWidget):
             else:
                 color = QColor(120, 120, 120)
             
-            # Draw actuator
+            # Draw actuator (larger)
             painter.setPen(QPen(QColor(0, 0, 0), 2))
             painter.setBrush(QBrush(color))
             
-            radius = 16 if is_hovered else 12
+            radius = 20 if is_hovered else 16  # Increased size
             painter.drawEllipse(int(screen_x - radius), int(screen_y - radius), 
                               radius * 2, radius * 2)
             
             # Actuator ID
             painter.setPen(QPen(QColor(255, 255, 255)))
-            font.setPointSize(9)
+            font.setPointSize(10)  # Larger font
             font.setBold(True)
             painter.setFont(font)
-            text_width = len(str(actuator_id)) * 5
-            painter.drawText(int(screen_x - text_width/2), int(screen_y + 3), str(actuator_id))
+            text_width = len(str(actuator_id)) * 6
+            painter.drawText(int(screen_x - text_width/2), int(screen_y + 4), str(actuator_id))
         
-        # Draw phantoms
+        # Draw phantoms (larger)
         for phantom in self.engine.enhanced_phantoms:
             phantom_screen = pos_to_screen(phantom.virtual_position)
             self.phantom_screen_positions[phantom.phantom_id] = phantom_screen
@@ -1030,15 +1250,15 @@ class EnhancedTactileVisualization(QWidget):
             
             if is_phantom_vibrating:
                 phantom_color = QColor(255, 50, 255)
-                radius = 14
+                radius = 18
             elif is_phantom_hovered:
                 phantom_color = QColor(255, 150, 255)
-                radius = 12
+                radius = 15
             else:
                 phantom_color = QColor(200, 100, 200)
-                radius = 10
+                radius = 12
             
-            # Draw phantom
+            # Draw phantom (larger)
             painter.setPen(QPen(QColor(0, 0, 0), 2))
             painter.setBrush(QBrush(phantom_color))
             painter.drawEllipse(int(phantom_screen[0] - radius), int(phantom_screen[1] - radius),
@@ -1046,11 +1266,11 @@ class EnhancedTactileVisualization(QWidget):
             
             # Phantom ID
             painter.setPen(QPen(QColor(255, 255, 255)))
-            font.setPointSize(8)
+            font.setPointSize(9)
             font.setBold(True)
             painter.setFont(font)
             phantom_text = f"P{phantom.phantom_id}"
-            text_width = len(phantom_text) * 4
+            text_width = len(phantom_text) * 5
             painter.drawText(int(phantom_screen[0] - text_width/2), int(phantom_screen[1] + 3), phantom_text)
             
             # Draw connection lines to actuators
@@ -1066,11 +1286,11 @@ class EnhancedTactileVisualization(QWidget):
                         painter.drawLine(int(phantom_screen[0]), int(phantom_screen[1]),
                                        int(phys_screen[0]), int(phys_screen[1]))
         
-        # Legend
-        legend_y = self.height() - 60
+        # Legend (smaller, at bottom)
+        legend_y = self.height() - 20
         painter.setPen(QPen(QColor(0, 0, 0)))
         font.setBold(False)
-        font.setPointSize(8)
+        font.setPointSize(7)  # Smaller font
         painter.setFont(font)
         
         # Trajectory mode indicator
@@ -1078,27 +1298,27 @@ class EnhancedTactileVisualization(QWidget):
             painter.setPen(QPen(QColor(0, 100, 255)))
             font.setBold(True)
             painter.setFont(font)
-            painter.drawText(margin, legend_y - 15, "🎨 TRAJECTORY MODE - Draw path to create phantoms")
+            painter.drawText(margin, legend_y - 35, "🎨 TRAJECTORY MODE - Draw path to create phantoms")
             font.setBold(False)
             painter.setFont(font)
             painter.setPen(QPen(QColor(0, 0, 0)))
         
         painter.drawText(margin, legend_y, "🔴 Vibrating  🟠 Hovered  🟣 Phantom  ⚫ Inactive")
-        
-        # Trajectory status
-        if self.engine and self.engine.current_trajectory:
-            trajectory_length = self.engine.calculate_trajectory_length(self.engine.current_trajectory)
-            phantom_count = len(self.engine.trajectory_phantoms)
-            trajectory_status = f"🎨 Trajectory: {len(self.engine.current_trajectory)} pts, {trajectory_length:.1f}mm, {phantom_count} phantoms"
-            painter.drawText(margin, legend_y + 12, trajectory_status)
 
 class EnhancedTactileGUI(QWidget):
-    """Enhanced GUI with trajectory creation support"""
+    """Enhanced GUI with waveform selection and pattern recording"""
     
     def __init__(self):
         super().__init__()
         self.engine = EnhancedTactileEngine()
         self.api = None
+        self.current_recorded_pattern = None
+        
+        # Recording update timer
+        self.recording_update_timer = QTimer()
+        self.recording_update_timer.timeout.connect(self.update_recording_display)
+        self.recording_update_timer.setInterval(500)  # Update every 500ms
+        
         self.setup_ui()
         self.setup_api()
         self.setup_connections()
@@ -1117,36 +1337,70 @@ class EnhancedTactileGUI(QWidget):
         self.viz.trajectory_drawn.connect(self.on_trajectory_completed)
     
     def setup_ui(self):
-        layout = QVBoxLayout(self)
+        # Use a splitter for better space management
+        main_layout = QHBoxLayout(self)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        
+        # Left panel for controls (narrower)
+        left_panel = QWidget()
+        left_panel.setMaximumWidth(350)  # Fixed width for controls
+        left_layout = QVBoxLayout(left_panel)
         
         # Title
-        title = QLabel("🎨 Enhanced 4x4 Tactile with Trajectory Creation (Park et al. 2016)")
+        title = QLabel("🎨 Enhanced Tactile Creator v3.0")
         title.setStyleSheet("font-weight: bold; font-size: 14px; color: #2E86AB;")
-        layout.addWidget(title)
+        left_layout.addWidget(title)
         
-        subtitle = QLabel("Draw curved paths for smooth tactile motion • 3-actuator phantoms • SOA timing")
+        subtitle = QLabel("Waveforms • Recording • Trajectory • Phantoms")
         subtitle.setStyleSheet("font-style: italic; color: #666; font-size: 10px;")
-        layout.addWidget(subtitle)
+        left_layout.addWidget(subtitle)
+        
+        # Scrollable area for controls
+        scroll = QScrollArea()
+        scroll_widget = QWidget()
+        scroll_layout = QVBoxLayout(scroll_widget)
         
         # Connection
         conn_group = QGroupBox("Connection")
-        conn_layout = QHBoxLayout(conn_group)
+        conn_layout = QVBoxLayout(conn_group)
         
+        device_layout = QHBoxLayout()
         self.device_combo = QComboBox()
         self.refresh_btn = QPushButton("Refresh")
+        device_layout.addWidget(QLabel("Device:"))
+        device_layout.addWidget(self.device_combo)
+        device_layout.addWidget(self.refresh_btn)
+        conn_layout.addLayout(device_layout)
+        
+        conn_btn_layout = QHBoxLayout()
         self.connect_btn = QPushButton("Connect")
         self.status_label = QLabel("Disconnected")
         self.status_label.setStyleSheet("color: red; font-weight: bold;")
+        conn_btn_layout.addWidget(self.connect_btn)
+        conn_btn_layout.addWidget(self.status_label)
+        conn_layout.addLayout(conn_btn_layout)
         
         self.refresh_btn.clicked.connect(self.refresh_devices)
         self.connect_btn.clicked.connect(self.toggle_connection)
+        scroll_layout.addWidget(conn_group)
         
-        conn_layout.addWidget(QLabel("Device:"))
-        conn_layout.addWidget(self.device_combo)
-        conn_layout.addWidget(self.refresh_btn)
-        conn_layout.addWidget(self.connect_btn)
-        conn_layout.addWidget(self.status_label)
-        layout.addWidget(conn_group)
+        # Waveform Selection
+        waveform_group = QGroupBox("🌊 Waveform Selection")
+        waveform_layout = QFormLayout(waveform_group)
+        
+        self.waveform_combo = QComboBox()
+        self.waveform_combo.addItems(WAVEFORM_TYPES)
+        self.waveform_combo.currentTextChanged.connect(self.on_waveform_changed)
+        waveform_layout.addRow("Type:", self.waveform_combo)
+        
+        self.frequency_spin = QSpinBox()
+        self.frequency_spin.setRange(50, 1000)
+        self.frequency_spin.setValue(250)
+        self.frequency_spin.setSuffix(" Hz")
+        self.frequency_spin.valueChanged.connect(self.on_frequency_changed)
+        waveform_layout.addRow("Frequency:", self.frequency_spin)
+        
+        scroll_layout.addWidget(waveform_group)
         
         # Pattern Parameters
         pattern_group = QGroupBox("Pattern Parameters")
@@ -1157,7 +1411,7 @@ class EnhancedTactileGUI(QWidget):
         self.pattern_duration_spin.setValue(60)
         self.pattern_duration_spin.setSuffix(" ms")
         self.pattern_duration_spin.valueChanged.connect(self.update_pattern_parameters)
-        pattern_layout.addRow("Duration (≤70ms):", self.pattern_duration_spin)
+        pattern_layout.addRow("Duration:", self.pattern_duration_spin)
         
         self.pattern_intensity_spin = QSpinBox()
         self.pattern_intensity_spin.setRange(1, 15)
@@ -1165,28 +1419,21 @@ class EnhancedTactileGUI(QWidget):
         self.pattern_intensity_spin.valueChanged.connect(self.update_pattern_parameters)
         pattern_layout.addRow("Intensity:", self.pattern_intensity_spin)
         
-        layout.addWidget(pattern_group)
+        scroll_layout.addWidget(pattern_group)
         
-        # Trajectory Creation
-        trajectory_group = QGroupBox("🎨 Trajectory Creation (Park et al. Smooth Motion)")
-        trajectory_layout = QFormLayout(trajectory_group)
+        # Pattern Recording
+        recording_group = QGroupBox("🔴 Pattern Recording")
+        recording_layout = QFormLayout(recording_group)
         
-        # Sampling rate
-        self.trajectory_sampling_spin = QSpinBox()
-        self.trajectory_sampling_spin.setRange(30, 100)
-        self.trajectory_sampling_spin.setValue(70)
-        self.trajectory_sampling_spin.setSuffix(" ms")
-        self.trajectory_sampling_spin.valueChanged.connect(self.update_trajectory_sampling)
-        trajectory_layout.addRow("Sampling Rate:", self.trajectory_sampling_spin)
+        self.pattern_name_edit = QLabel("New Pattern")
+        recording_layout.addRow("Name:", self.pattern_name_edit)
         
-        # Controls
-        trajectory_btn_layout = QHBoxLayout()
-        
-        self.trajectory_mode_btn = QPushButton("🎨 Start Drawing")
-        self.trajectory_mode_btn.clicked.connect(self.toggle_trajectory_mode)
-        self.trajectory_mode_btn.setStyleSheet("""
+        record_btn_layout = QHBoxLayout()
+        self.record_btn = QPushButton("🔴 Start Recording")
+        self.record_btn.clicked.connect(self.toggle_recording)
+        self.record_btn.setStyleSheet("""
             QPushButton {
-                background-color: #2196F3;
+                background-color: #F44336;
                 color: white;
                 padding: 8px;
                 font-weight: bold;
@@ -1194,81 +1441,280 @@ class EnhancedTactileGUI(QWidget):
             }
         """)
         
-        self.play_trajectory_btn = QPushButton("▶️ Play Trajectory")
+        self.save_pattern_btn = QPushButton("💾 Save Pattern")
+        self.save_pattern_btn.clicked.connect(self.save_current_pattern)
+        self.save_pattern_btn.setEnabled(False)
+        
+        record_btn_layout.addWidget(self.record_btn)
+        record_btn_layout.addWidget(self.save_pattern_btn)
+        recording_layout.addRow("", record_btn_layout)
+        
+        scroll_layout.addWidget(recording_group)
+        
+        # Pattern Library
+        library_group = QGroupBox("📚 Pattern Library")
+        library_layout = QVBoxLayout(library_group)
+        
+        self.pattern_list = QListWidget()
+        self.pattern_list.setMaximumHeight(100)
+        self.load_pattern_list()
+        library_layout.addWidget(self.pattern_list)
+        
+        library_btn_layout = QHBoxLayout()
+        self.load_pattern_btn = QPushButton("📂 Load")
+        self.load_pattern_btn.clicked.connect(self.load_selected_pattern)
+        
+        self.play_pattern_btn = QPushButton("▶️ Play")
+        self.play_pattern_btn.clicked.connect(self.play_selected_pattern)
+        
+        self.refresh_patterns_btn = QPushButton("🔄")
+        self.refresh_patterns_btn.clicked.connect(self.load_pattern_list)
+        
+        library_btn_layout.addWidget(self.load_pattern_btn)
+        library_btn_layout.addWidget(self.play_pattern_btn)
+        library_btn_layout.addWidget(self.refresh_patterns_btn)
+        library_layout.addLayout(library_btn_layout)
+        
+        scroll_layout.addWidget(library_group)
+        
+        # Trajectory Creation
+        trajectory_group = QGroupBox("🎨 Trajectory Creation")
+        trajectory_layout = QFormLayout(trajectory_group)
+        
+        self.trajectory_sampling_spin = QSpinBox()
+        self.trajectory_sampling_spin.setRange(30, 100)
+        self.trajectory_sampling_spin.setValue(70)
+        self.trajectory_sampling_spin.setSuffix(" ms")
+        self.trajectory_sampling_spin.valueChanged.connect(self.update_trajectory_sampling)
+        trajectory_layout.addRow("Sampling:", self.trajectory_sampling_spin)
+        
+        trajectory_btn_layout = QVBoxLayout()
+        
+        self.trajectory_mode_btn = QPushButton("🎨 Start Drawing")
+        self.trajectory_mode_btn.clicked.connect(self.toggle_trajectory_mode)
+        
+        traj_controls_layout = QHBoxLayout()
+        self.play_trajectory_btn = QPushButton("▶️ Play")
         self.play_trajectory_btn.clicked.connect(self.play_trajectory)
         self.play_trajectory_btn.setEnabled(False)
         
-        self.clear_trajectory_btn = QPushButton("🗑️ Clear Path")
+        self.clear_trajectory_btn = QPushButton("🗑️ Clear")
         self.clear_trajectory_btn.clicked.connect(self.clear_trajectory)
         
+        traj_controls_layout.addWidget(self.play_trajectory_btn)
+        traj_controls_layout.addWidget(self.clear_trajectory_btn)
+        
         trajectory_btn_layout.addWidget(self.trajectory_mode_btn)
-        trajectory_btn_layout.addWidget(self.play_trajectory_btn)
-        trajectory_btn_layout.addWidget(self.clear_trajectory_btn)
+        trajectory_btn_layout.addLayout(traj_controls_layout)
         trajectory_layout.addRow("", trajectory_btn_layout)
         
-        # Info
-        self.trajectory_info_label = QLabel("Draw a curved path to create smooth tactile motion")
-        self.trajectory_info_label.setStyleSheet("color: #666; font-style: italic; font-size: 10px;")
-        trajectory_layout.addRow("", self.trajectory_info_label)
-        
-        layout.addWidget(trajectory_group)
+        scroll_layout.addWidget(trajectory_group)
         
         # Manual Phantom Creation
-        phantom_group = QGroupBox("Manual Phantom Creation")
+        phantom_group = QGroupBox("Manual Phantom")
         phantom_layout = QFormLayout(phantom_group)
         
+        phantom_pos_layout = QHBoxLayout()
         self.phantom_x_spin = QSpinBox()
         self.phantom_x_spin.setRange(-20, 200)
         self.phantom_x_spin.setValue(80)
         self.phantom_x_spin.setSuffix(" mm")
-        phantom_layout.addRow("X Position:", self.phantom_x_spin)
         
         self.phantom_y_spin = QSpinBox()
         self.phantom_y_spin.setRange(-20, 220)
         self.phantom_y_spin.setValue(90)
         self.phantom_y_spin.setSuffix(" mm")
-        phantom_layout.addRow("Y Position:", self.phantom_y_spin)
+        
+        phantom_pos_layout.addWidget(QLabel("X:"))
+        phantom_pos_layout.addWidget(self.phantom_x_spin)
+        phantom_pos_layout.addWidget(QLabel("Y:"))
+        phantom_pos_layout.addWidget(self.phantom_y_spin)
+        phantom_layout.addRow("Position:", phantom_pos_layout)
         
         self.phantom_intensity_spin = QSpinBox()
         self.phantom_intensity_spin.setRange(1, 15)
-        self.phantom_intensity_spin.setValue(8)
+        self.phantom_intensity_spin.setValue(13)
         phantom_layout.addRow("Intensity:", self.phantom_intensity_spin)
         
         self.create_phantom_btn = QPushButton("🔺 Create Phantom")
         self.create_phantom_btn.clicked.connect(self.create_enhanced_phantom)
         phantom_layout.addRow("", self.create_phantom_btn)
         
-        layout.addWidget(phantom_group)
+        scroll_layout.addWidget(phantom_group)
         
-        # Visualization
-        viz_group = QGroupBox("Interactive Visualization")
-        viz_layout = QVBoxLayout(viz_group)
-        
-        self.viz = EnhancedTactileVisualization()
-        self.viz.set_engine(self.engine)
-        viz_layout.addWidget(self.viz)
-        layout.addWidget(viz_group)
-        
-        # Controls
-        control_layout = QHBoxLayout()
-        
+        # Stop button
         self.stop_all_btn = QPushButton("🛑 STOP ALL")
         self.stop_all_btn.clicked.connect(self.stop_all)
         self.stop_all_btn.setStyleSheet("QPushButton { background-color: #FF4444; color: white; font-weight: bold; padding: 8px; }")
+        scroll_layout.addWidget(self.stop_all_btn)
         
-        control_layout.addStretch()
-        control_layout.addWidget(self.stop_all_btn)
-        layout.addLayout(control_layout)
+        scroll.setWidget(scroll_widget)
+        left_layout.addWidget(scroll)
         
-        # Info display
+        # Right panel for visualization (larger)
+        viz_panel = QWidget()
+        viz_layout = QVBoxLayout(viz_panel)
+        
+        # Visualization
+        self.viz = EnhancedTactileVisualization()
+        self.viz.set_engine(self.engine)
+        viz_layout.addWidget(self.viz)
+        
+        # Info display (smaller)
         self.info_text = QTextEdit()
-        self.info_text.setMaximumHeight(80)
+        self.info_text.setMaximumHeight(60)
         self.info_text.setReadOnly(True)
-        self.info_text.setPlainText("🎨 Enhanced tactile system ready! Draw paths for smooth motion or create manual phantoms.")
-        layout.addWidget(self.info_text)
+        self.info_text.setPlainText("🎨 Enhanced tactile system v3.0 ready! Choose waveforms, record patterns, draw trajectories.")
+        viz_layout.addWidget(self.info_text)
+        
+        # Add panels to splitter
+        splitter.addWidget(left_panel)
+        splitter.addWidget(viz_panel)
+        splitter.setSizes([350, 650])  # Give more space to visualization
+        
+        main_layout.addWidget(splitter)
         
         # Initialize
         self.update_pattern_parameters()
+    
+    def on_waveform_changed(self, waveform_type: str):
+        """Handle waveform type change"""
+        self.engine.set_waveform_type(waveform_type)
+        self.viz.update()
+        self.info_text.setPlainText(f"🌊 Waveform changed to: {waveform_type}")
+    
+    def on_frequency_changed(self, frequency: int):
+        """Handle frequency change"""
+        self.engine.set_waveform_frequency(float(frequency))
+        self.info_text.setPlainText(f"🎵 Frequency set to: {frequency}Hz")
+    
+    def update_recording_display(self):
+        """Update recording display with current step count"""
+        if self.engine.is_recording:
+            step_count = len(self.engine.current_pattern_steps)
+            elapsed_time = (time.time() * 1000) - self.engine.recording_start_time
+            
+            self.info_text.setPlainText(
+                f"🔴 Recording: {step_count} steps captured\n"
+                f"Time: {elapsed_time/1000:.1f}s | Waveform: {self.engine.current_waveform_type} @ {self.engine.waveform_frequency}Hz"
+            )
+            self.viz.update()  # Update visualization to show step count
+    
+    def toggle_recording(self):
+        """Toggle pattern recording"""
+        if not self.engine.is_recording:
+            # Start recording
+            pattern_name = f"Pattern_{int(time.time())}"
+            self.engine.start_recording(pattern_name)
+            self.pattern_name_edit.setText(pattern_name)
+            
+            # Start update timer
+            self.recording_update_timer.start()
+            
+            self.record_btn.setText("⏹️ Stop Recording")
+            self.record_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #FF9800;
+                    color: white;
+                    padding: 8px;
+                    font-weight: bold;
+                    border-radius: 4px;
+                }
+            """)
+            self.info_text.setPlainText(
+                f"🔴 Recording started: {pattern_name}\n"
+                f"Hover over actuators or phantoms to record. Current waveform: {self.engine.current_waveform_type}"
+            )
+        else:
+            # Stop recording
+            self.recording_update_timer.stop()
+            self.current_recorded_pattern = self.engine.stop_recording()
+            
+            self.record_btn.setText("🔴 Start Recording")
+            self.record_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #F44336;
+                    color: white;
+                    padding: 8px;
+                    font-weight: bold;
+                    border-radius: 4px;
+                }
+            """)
+            
+            if self.current_recorded_pattern and len(self.current_recorded_pattern.steps) > 0:
+                self.save_pattern_btn.setEnabled(True)
+                self.info_text.setPlainText(
+                    f"⏹️ Recording stopped: {len(self.current_recorded_pattern.steps)} steps recorded\n"
+                    f"Duration: {self.current_recorded_pattern.total_duration:.1f}ms - Click 'Save Pattern' to store"
+                )
+            else:
+                self.info_text.setPlainText(
+                    "⏹️ Recording stopped - no steps recorded\n"
+                    "💡 Tip: Hover over actuators while recording to capture interactions"
+                )
+        
+        self.viz.update()
+    
+    def save_current_pattern(self):
+        """Save the currently recorded pattern"""
+        if not self.current_recorded_pattern:
+            self.info_text.setPlainText("❌ No pattern to save")
+            return
+        
+        success = self.engine.save_pattern(self.current_recorded_pattern)
+        if success:
+            self.save_pattern_btn.setEnabled(False)
+            self.load_pattern_list()
+            self.info_text.setPlainText(f"💾 Pattern saved: {self.current_recorded_pattern.name}")
+            self.current_recorded_pattern = None
+        else:
+            self.info_text.setPlainText("❌ Failed to save pattern")
+    
+    def load_pattern_list(self):
+        """Load the list of saved patterns"""
+        self.pattern_list.clear()
+        pattern_files = self.engine.get_saved_patterns()
+        for filename in pattern_files:
+            self.pattern_list.addItem(filename)
+    
+    def load_selected_pattern(self):
+        """Load the selected pattern"""
+        current_item = self.pattern_list.currentItem()
+        if not current_item:
+            self.info_text.setPlainText("❌ No pattern selected")
+            return
+        
+        filename = current_item.text()
+        filepath = os.path.join(PATTERNS_FOLDER, filename)
+        
+        pattern = self.engine.load_pattern(filepath)
+        if pattern:
+            self.info_text.setPlainText(
+                f"📂 Pattern loaded: {pattern.name}\n"
+                f"Steps: {len(pattern.steps)}, Duration: {pattern.total_duration:.1f}ms"
+            )
+        else:
+            self.info_text.setPlainText("❌ Failed to load pattern")
+    
+    def play_selected_pattern(self):
+        """Play the selected pattern"""
+        current_item = self.pattern_list.currentItem()
+        if not current_item:
+            self.info_text.setPlainText("❌ No pattern selected")
+            return
+        
+        filename = current_item.text()
+        filepath = os.path.join(PATTERNS_FOLDER, filename)
+        
+        pattern = self.engine.load_pattern(filepath)
+        if pattern:
+            self.engine.play_pattern(pattern)
+            self.info_text.setPlainText(
+                f"▶️ Playing pattern: {pattern.name}\n"
+                f"Steps: {len(pattern.steps)}, Duration: {pattern.total_duration:.1f}ms"
+            )
+        else:
+            self.info_text.setPlainText("❌ Failed to load and play pattern")
     
     def refresh_devices(self):
         if not self.api:
@@ -1314,9 +1760,7 @@ class EnhancedTactileGUI(QWidget):
                     border-radius: 4px;
                 }
             """)
-            self.trajectory_info_label.setText("🎨 DRAWING MODE: Click and drag to draw your path")
-            self.trajectory_info_label.setStyleSheet("color: #2196F3; font-weight: bold; font-size: 10px;")
-            self.info_text.setPlainText("🎨 Trajectory mode enabled - click and drag on the visualization to draw a curved path")
+            self.info_text.setPlainText("🎨 Trajectory mode enabled - click and drag to draw path")
         else:
             self.engine.stop_trajectory_mode()
             self.trajectory_mode_btn.setText("🎨 Start Drawing")
@@ -1329,8 +1773,6 @@ class EnhancedTactileGUI(QWidget):
                     border-radius: 4px;
                 }
             """)
-            self.trajectory_info_label.setText("Draw a curved path to create smooth tactile motion")
-            self.trajectory_info_label.setStyleSheet("color: #666; font-style: italic; font-size: 10px;")
             self.info_text.setPlainText("🎨 Trajectory mode disabled")
         
         self.viz.update()
@@ -1348,9 +1790,8 @@ class EnhancedTactileGUI(QWidget):
             total_time = phantom_count * soa
             
             self.info_text.setPlainText(
-                f"✅ Trajectory completed: {phantom_count} phantoms created\n"
-                f"📏 Path length: {trajectory_length:.1f}mm, Total time: {total_time:.1f}ms\n"
-                f"🎯 Click 'Play Trajectory' to see smooth motion along your path"
+                f"✅ Trajectory completed: {phantom_count} phantoms\n"
+                f"Length: {trajectory_length:.1f}mm, {self.engine.current_waveform_type} waveform"
             )
         else:
             self.info_text.setPlainText("❌ Failed to create phantoms - try drawing closer to actuators")
@@ -1363,11 +1804,10 @@ class EnhancedTactileGUI(QWidget):
         
         self.engine.play_trajectory_phantoms()
         phantom_count = len(self.engine.trajectory_phantoms)
-        soa = self.engine.calculate_enhanced_soa(self.engine.pattern_duration)
         
         self.info_text.setPlainText(
-            f"▶️ Playing trajectory: {phantom_count} phantoms with {soa:.1f}ms SOA\n"
-            f"🎯 Smooth tactile motion following your drawn path (Park et al. methodology)"
+            f"▶️ Playing trajectory: {phantom_count} phantoms\n"
+            f"Waveform: {self.engine.current_waveform_type} @ {self.engine.waveform_frequency}Hz"
         )
     
     def clear_trajectory(self):
@@ -1387,14 +1827,6 @@ class EnhancedTactileGUI(QWidget):
         """Update trajectory sampling rate"""
         rate = self.trajectory_sampling_spin.value()
         self.engine.set_trajectory_sampling_rate(rate)
-        
-        soa = self.engine.calculate_enhanced_soa(self.engine.pattern_duration)
-        actual_rate = min(rate, soa)
-        
-        if actual_rate != rate:
-            self.info_text.setPlainText(f"⚠️ Sampling rate limited to {actual_rate}ms (SOA constraint)")
-        else:
-            self.info_text.setPlainText(f"🎛️ Trajectory sampling rate: {rate}ms")
     
     def create_enhanced_phantom(self):
         """Create manual phantom"""
@@ -1407,11 +1839,11 @@ class EnhancedTactileGUI(QWidget):
         if phantom:
             self.viz.update()
             self.info_text.setPlainText(
-                f"✅ Phantom created at ({x}, {y}) using actuators "
-                f"[{phantom.physical_actuator_1}, {phantom.physical_actuator_2}, {phantom.physical_actuator_3}]"
+                f"✅ Phantom created at ({x}, {y})\n"
+                f"Actuators: [{phantom.physical_actuator_1}, {phantom.physical_actuator_2}, {phantom.physical_actuator_3}]"
             )
         else:
-            self.info_text.setPlainText("❌ Failed to create phantom - try a position closer to actuators")
+            self.info_text.setPlainText("❌ Failed to create phantom - try closer to actuators")
     
     def stop_all(self):
         """Emergency stop"""
@@ -1425,11 +1857,11 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     
     window = QMainWindow()
-    window.setWindowTitle("🎨 Enhanced Tactile Pattern Creator with Trajectory Support")
+    window.setWindowTitle("🎨 Enhanced Tactile Pattern Creator v3.0")
     
     widget = EnhancedTactileGUI()
     window.setCentralWidget(widget)
-    window.resize(700, 900)
+    window.resize(1000, 700)  # Adjusted window size
     window.show()
     
     sys.exit(app.exec())

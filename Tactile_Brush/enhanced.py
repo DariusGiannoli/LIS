@@ -1786,5 +1786,5 @@ if __name__ == "__main__":
     window.setCentralWidget(widget)
     window.resize(600, 800)  # Much smaller window
     window.show()
-    
+    s
     sys.exit(app.exec())
