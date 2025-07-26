@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """
-Enhanced Interactive Tactile Pattern Creator v3.0 with Waveform Support
-Park et al. (2016) Implementation with Trajectory Support and Waveform Library
+Enhanced Interactive Tactile Pattern Creator v3.1 with Layout Editor
+Park et al. (2016) Implementation with Waveform Support and Drag-and-Drop Layout
 
 Features:
-- Larger actuator visualization within same window size
+- Default 4x4 grid layout with drag-and-drop positioning
+- Layout editor mode for custom actuator positioning
 - Multiple waveform types (Sine, Square, Saw, Triangle, Chirp, FM, PWM, Noise)
 - Pattern recording and saving to folder
 - 3-actuator phantom sensations for arbitrary 2D positioning
 - Trajectory drawing with automatic phantom creation
 - Non-overlapping SOA constraints (duration ≤ 70ms)
+- Save/load custom layouts
 """
 import sys
 import time
@@ -23,10 +25,10 @@ from PyQt6.QtWidgets import (
     QSpinBox, QDoubleSpinBox, QFormLayout, QGroupBox,
     QApplication, QMainWindow, QComboBox, QTextEdit, QSlider,
     QCheckBox, QTabWidget, QFileDialog, QListWidget, QMessageBox,
-    QSplitter, QScrollArea
+    QSplitter, QScrollArea, QLineEdit
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QPointF
-from PyQt6.QtGui import QPainter, QPen, QBrush, QColor, QFont, QMouseEvent
+from PyQt6.QtGui import QPainter, QPen, QBrush, QColor, QFont, QMouseEvent, QCursor
 
 # Import waveform generation
 import numpy as np
@@ -51,11 +53,12 @@ ACTUATORS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 GRID_ROWS = 4
 GRID_COLS = 4
 
-USER_LAYOUT = [
-    [3, 2, 1, 0],      # Row 0
-    [7, 6, 5, 4],      # Row 1
-    [8, 9, 10, 11],    # Row 2
-    [15, 14, 13, 12]   # Row 3
+# Default 4x4 grid layout (standard grid positions)
+DEFAULT_LAYOUT = [
+    [0,  1,  2,  3],   # Row 0
+    [4,  5,  6,  7],   # Row 1
+    [8,  9,  10, 11],  # Row 2
+    [12, 13, 14, 15]   # Row 3
 ]
 
 # Park et al. (2016) parameters
@@ -74,36 +77,35 @@ WAVEFORM_TYPES = [
     "Chirp", "FM", "PWM", "Noise"
 ]
 
-# Patterns folder
+# Patterns and layouts folders
 PATTERNS_FOLDER = "saved_patterns"
+LAYOUTS_FOLDER = "saved_layouts"
 
-def ensure_patterns_folder():
-    """Ensure patterns folder exists"""
-    if not os.path.exists(PATTERNS_FOLDER):
-        os.makedirs(PATTERNS_FOLDER)
-        print(f"📁 Created patterns folder: {PATTERNS_FOLDER}")
+def ensure_folders():
+    """Ensure patterns and layouts folders exist"""
+    for folder in [PATTERNS_FOLDER, LAYOUTS_FOLDER]:
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+            print(f"📁 Created folder: {folder}")
 
-def get_grid_position(actuator_id: int, spacing_mm: float) -> Tuple[float, float]:
-    """Convert actuator ID to (x, y) position in mm for user's 4x4 layout"""
+def get_default_grid_position(actuator_id: int, spacing_mm: float = 50) -> Tuple[float, float]:
+    """Get default 4x4 grid position for actuator"""
     if actuator_id < 0 or actuator_id >= 16:
         raise ValueError(f"Invalid actuator ID {actuator_id} for 4x4 grid")
     
-    for row in range(GRID_ROWS):
-        for col in range(GRID_COLS):
-            if USER_LAYOUT[row][col] == actuator_id:
-                x_positions = [0, 50, 110, 160]
-                y_positions = [0, 60, 120, 180]
-                x = x_positions[col]
-                y = y_positions[row]
-                return (x, y)
+    row = actuator_id // 4
+    col = actuator_id % 4
     
-    raise ValueError(f"Actuator ID {actuator_id} not found in layout")
+    x = col * spacing_mm
+    y = row * spacing_mm
+    
+    return (x, y)
 
-def get_actuator_id(row: int, col: int) -> int:
-    """Convert grid (row, col) to actuator ID using user's layout"""
+def get_actuator_id_from_grid(row: int, col: int) -> int:
+    """Convert grid (row, col) to actuator ID using default layout"""
     if row < 0 or row >= GRID_ROWS or col < 0 or col >= GRID_COLS:
         return -1
-    return USER_LAYOUT[row][col]
+    return DEFAULT_LAYOUT[row][col]
 
 def point_in_triangle(p: Tuple[float, float], a: Tuple[float, float], 
                      b: Tuple[float, float], c: Tuple[float, float]) -> bool:
@@ -195,6 +197,30 @@ class TactilePattern:
         )
 
 @dataclass
+class ActuatorLayout:
+    name: str
+    positions: Dict[int, Tuple[float, float]]
+    created_timestamp: float
+    description: str = ""
+
+    def to_dict(self):
+        return {
+            'name': self.name,
+            'positions': self.positions,
+            'created_timestamp': self.created_timestamp,
+            'description': self.description
+        }
+    
+    @classmethod
+    def from_dict(cls, data):
+        return cls(
+            name=data['name'],
+            positions=data['positions'],
+            created_timestamp=data['created_timestamp'],
+            description=data.get('description', '')
+        )
+
+@dataclass
 class Enhanced3ActuatorPhantom:
     """Enhanced phantom using 3-actuator system from Park et al."""
     phantom_id: int
@@ -212,13 +238,16 @@ class Enhanced3ActuatorPhantom:
     waveform_type: str = "Sine"
 
 class EnhancedTactileEngine:
-    """Enhanced engine with 3-actuator phantoms, trajectory support, and waveforms"""
+    """Enhanced engine with layout editing, phantoms, and waveforms"""
     
-    def __init__(self, api=None, actuator_spacing_mm=63):
+    def __init__(self, api=None, actuator_spacing_mm=50):
         self.api = api
         self.actuator_spacing = actuator_spacing_mm
-        self.use_custom_positions = True
+        
+        # Layout management
+        self.current_layout_name = "Default 4x4 Grid"
         self.custom_positions = {}
+        self.saved_layouts = {}
         
         # Waveform settings
         self.current_waveform_type = "Sine"
@@ -261,10 +290,99 @@ class EnhancedTactileEngine:
         self.pattern_intensity = 8
         self.use_enhanced_phantoms = True
         
-        self.load_user_custom_positions()
+        # Initialize with default grid layout
+        self.load_default_layout()
         self.update_grid_positions()
         self.compute_actuator_triangles()
-        ensure_patterns_folder()
+        ensure_folders()
+    
+    def load_default_layout(self):
+        """Load default 4x4 grid layout"""
+        self.custom_positions = {}
+        for actuator_id in ACTUATORS:
+            x, y = get_default_grid_position(actuator_id, self.actuator_spacing)
+            self.custom_positions[actuator_id] = (x, y)
+        print(f"🔄 Loaded default 4x4 grid layout")
+    
+    def set_actuator_position(self, actuator_id: int, position: Tuple[float, float]):
+        """Set custom position for an actuator"""
+        if actuator_id in ACTUATORS:
+            self.custom_positions[actuator_id] = position
+            self.update_grid_positions()
+            self.compute_actuator_triangles()
+            print(f"📍 Moved actuator {actuator_id} to ({position[0]:.1f}, {position[1]:.1f})")
+    
+    def get_actuator_position(self, actuator_id: int) -> Optional[Tuple[float, float]]:
+        """Get position of an actuator"""
+        return self.custom_positions.get(actuator_id)
+    
+    def save_layout(self, layout_name: str, description: str = "") -> bool:
+        """Save current layout to file"""
+        ensure_folders()
+        
+        layout = ActuatorLayout(
+            name=layout_name,
+            positions=self.custom_positions.copy(),
+            created_timestamp=time.time(),
+            description=description
+        )
+        
+        filename = f"{layout_name.replace(' ', '_')}.json"
+        filepath = os.path.join(LAYOUTS_FOLDER, filename)
+        
+        try:
+            with open(filepath, 'w') as f:
+                json.dump(layout.to_dict(), f, indent=2)
+            
+            self.saved_layouts[layout_name] = layout
+            self.current_layout_name = layout_name
+            print(f"💾 Layout saved: {filepath}")
+            return True
+        except Exception as e:
+            print(f"❌ Failed to save layout: {e}")
+            return False
+    
+    def load_layout(self, filepath: str) -> Optional[ActuatorLayout]:
+        """Load layout from file"""
+        try:
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+            
+            layout = ActuatorLayout.from_dict(data)
+            
+            # Convert string keys to int keys if needed
+            if isinstance(list(layout.positions.keys())[0], str):
+                layout.positions = {int(k): v for k, v in layout.positions.items()}
+            
+            self.custom_positions = layout.positions.copy()
+            self.saved_layouts[layout.name] = layout
+            self.current_layout_name = layout.name
+            
+            self.update_grid_positions()
+            self.compute_actuator_triangles()
+            
+            print(f"📂 Layout loaded: {layout.name}")
+            return layout
+        except Exception as e:
+            print(f"❌ Failed to load layout: {e}")
+            return None
+    
+    def get_saved_layouts(self) -> List[str]:
+        """Get list of saved layout files"""
+        ensure_folders()
+        layout_files = []
+        
+        for filename in os.listdir(LAYOUTS_FOLDER):
+            if filename.endswith('.json'):
+                layout_files.append(filename)
+        
+        return sorted(layout_files)
+    
+    def reset_to_default_layout(self):
+        """Reset to default 4x4 grid layout"""
+        self.load_default_layout()
+        self.current_layout_name = "Default 4x4 Grid"
+        print(f"🔄 Reset to default 4x4 grid layout")
     
     def set_waveform_type(self, waveform_type: str):
         """Set the current waveform type"""
@@ -277,122 +395,52 @@ class EnhancedTactileEngine:
         self.waveform_frequency = max(50.0, min(1000.0, frequency))
         print(f"🎵 Waveform frequency set to: {self.waveform_frequency}Hz")
     
-    def load_user_custom_positions(self):
-        """Load the user's specific custom positions"""
-        user_positions = {
-            3:  (0,   0),   2:  (50,  0),   1:  (110, 0),   0:  (160, 0),
-            4:  (0,   60),  5:  (50,  60),  6:  (110, 60),  7:  (160, 60),
-            11: (0,   120), 10: (50,  120), 9:  (110, 120), 8:  (160, 120),
-            12: (0,   180), 13: (50,  180), 14: (110, 180), 15: (160, 180)
-        }
-        self.custom_positions = user_positions
-        print(f"🎯 Loaded user's custom positions with enhanced 3-actuator phantom support")
-    
     def compute_actuator_triangles(self):
         """Systematic triangulation for smooth phantom motion"""
         self.actuator_triangles = []
         positions = self.actuator_positions
         
+        if len(positions) < 3:
+            return
+        
         triangles_added = 0
         
-        # Grid-based systematic triangulation
-        for row in range(GRID_ROWS - 1):
-            for col in range(GRID_COLS - 1):
-                top_left = get_actuator_id(row, col)
-                top_right = get_actuator_id(row, col + 1)  
-                bottom_left = get_actuator_id(row + 1, col)
-                bottom_right = get_actuator_id(row + 1, col + 1)
-                
-                if -1 in [top_left, top_right, bottom_left, bottom_right]:
-                    continue
-                
-                # Two triangles from rectangular cell
-                triangle1_acts = [top_left, top_right, bottom_left]
-                triangle1_pos = [positions[act] for act in triangle1_acts]
-                
-                triangle2_acts = [top_right, bottom_left, bottom_right]
-                triangle2_pos = [positions[act] for act in triangle2_acts]
-                
-                for triangle_acts, triangle_pos, tri_name in [
-                    (triangle1_acts, triangle1_pos, "upper"),
-                    (triangle2_acts, triangle2_pos, "lower")
-                ]:
-                    area = abs((triangle_pos[0][0]*(triangle_pos[1][1]-triangle_pos[2][1]) + 
-                              triangle_pos[1][0]*(triangle_pos[2][1]-triangle_pos[0][1]) + 
-                              triangle_pos[2][0]*(triangle_pos[0][1]-triangle_pos[1][1]))/2)
+        # Create triangles from all possible combinations of 3 actuators
+        actuator_ids = list(positions.keys())
+        
+        for i in range(len(actuator_ids)):
+            for j in range(i + 1, len(actuator_ids)):
+                for k in range(j + 1, len(actuator_ids)):
+                    act1, act2, act3 = actuator_ids[i], actuator_ids[j], actuator_ids[k]
+                    pos1, pos2, pos3 = positions[act1], positions[act2], positions[act3]
                     
-                    if area > 50:
+                    # Calculate triangle area
+                    area = abs((pos1[0]*(pos2[1]-pos3[1]) + 
+                              pos2[0]*(pos3[1]-pos1[1]) + 
+                              pos3[0]*(pos1[1]-pos2[1]))/2)
+                    
+                    # Only include triangles with reasonable area
+                    if area > 50 and area < 5000:
                         triangle = {
-                            'actuators': triangle_acts,
-                            'positions': triangle_pos,
+                            'actuators': [act1, act2, act3],
+                            'positions': [pos1, pos2, pos3],
                             'area': area,
-                            'center': ((triangle_pos[0][0]+triangle_pos[1][0]+triangle_pos[2][0])/3, 
-                                     (triangle_pos[0][1]+triangle_pos[1][1]+triangle_pos[2][1])/3),
-                            'type': f'grid_{row}_{col}_{tri_name}',
-                            'smoothness_score': self.calculate_triangle_smoothness(triangle_pos)
+                            'center': ((pos1[0]+pos2[0]+pos3[0])/3, 
+                                     (pos1[1]+pos2[1]+pos3[1])/3),
+                            'type': f'auto_{act1}_{act2}_{act3}',
+                            'smoothness_score': self.calculate_triangle_smoothness([pos1, pos2, pos3])
                         }
                         self.actuator_triangles.append(triangle)
                         triangles_added += 1
         
-        # Add adjacent triangles for better coverage
-        edge_triangles = 0
-        for row in range(GRID_ROWS):
-            for col in range(GRID_COLS):
-                center_act = get_actuator_id(row, col)
-                if center_act == -1:
-                    continue
-                    
-                center_pos = positions[center_act]
-                
-                nearby_actuators = []
-                max_distance = 85  # mm
-                
-                for other_row in range(GRID_ROWS):
-                    for other_col in range(GRID_COLS):
-                        other_act = get_actuator_id(other_row, other_col)
-                        if other_act == -1 or other_act == center_act:
-                            continue
-                            
-                        other_pos = positions[other_act]
-                        distance = math.sqrt((center_pos[0]-other_pos[0])**2 + (center_pos[1]-other_pos[1])**2)
-                        
-                        if distance <= max_distance:
-                            nearby_actuators.append((other_act, other_pos, distance))
-                
-                nearby_actuators.sort(key=lambda x: x[2])
-                
-                for i in range(len(nearby_actuators)-1):
-                    for j in range(i+1, min(i+3, len(nearby_actuators))):
-                        act1, pos1, _ = nearby_actuators[i]
-                        act2, pos2, _ = nearby_actuators[j]
-                        
-                        triangle_acts = [center_act, act1, act2]
-                        triangle_pos = [center_pos, pos1, pos2]
-                        
-                        exists = any(set(t['actuators']) == set(triangle_acts) for t in self.actuator_triangles)
-                        if exists:
-                            continue
-                        
-                        area = abs((triangle_pos[0][0]*(triangle_pos[1][1]-triangle_pos[2][1]) + 
-                                  triangle_pos[1][0]*(triangle_pos[2][1]-triangle_pos[0][1]) + 
-                                  triangle_pos[2][0]*(triangle_pos[0][1]-triangle_pos[1][1]))/2)
-                        
-                        if area > 50 and area < 3000:
-                            triangle = {
-                                'actuators': triangle_acts,
-                                'positions': triangle_pos,
-                                'area': area,
-                                'center': ((triangle_pos[0][0]+triangle_pos[1][0]+triangle_pos[2][0])/3, 
-                                         (triangle_pos[0][1]+triangle_pos[1][1]+triangle_pos[2][1])/3),
-                                'type': f'local_{center_act}_{act1}_{act2}',
-                                'smoothness_score': self.calculate_triangle_smoothness(triangle_pos)
-                            }
-                            self.actuator_triangles.append(triangle)
-                            edge_triangles += 1
-        
+        # Sort by quality (smoothness and area)
         self.actuator_triangles.sort(key=lambda t: (t['smoothness_score'], t['area']))
         
-        print(f"🔺 Total: {len(self.actuator_triangles)} optimized triangles for smooth phantom motion")
+        # Keep only the best triangles to avoid overwhelming computation
+        max_triangles = min(50, len(self.actuator_triangles))
+        self.actuator_triangles = self.actuator_triangles[:max_triangles]
+        
+        print(f"🔺 Generated {len(self.actuator_triangles)} optimized triangles")
     
     def calculate_triangle_smoothness(self, triangle_pos: List[Tuple[float, float]]) -> float:
         """Calculate smoothness score for triangle"""
@@ -453,7 +501,7 @@ class EnhancedTactileEngine:
             dist = math.sqrt((phantom_pos[0] - pos[0])**2 + (phantom_pos[1] - pos[1])**2)
             distances.append(max(dist, 1.0))
         
-        # Park et al. energy summation model: Ai = sqrt(1/di / sum(1/dj)) * Av
+        # Park et al. energy summation model
         sum_inv_distances = sum(1/d for d in distances)
         
         intensities_norm = []
@@ -470,7 +518,7 @@ class EnhancedTactileEngine:
     
     def create_enhanced_phantom(self, phantom_pos: Tuple[float, float], 
                               desired_intensity: int) -> Optional[Enhanced3ActuatorPhantom]:
-        """Create enhanced 3-actuator phantom following Park et al. methodology"""
+        """Create enhanced 3-actuator phantom"""
         if desired_intensity < 1 or desired_intensity > 15:
             return None
         
@@ -518,22 +566,7 @@ class EnhancedTactileEngine:
     
     def update_grid_positions(self):
         """Update actuator positions"""
-        self.actuator_positions = {}
-        
-        if self.use_custom_positions and self.custom_positions:
-            for actuator_id in ACTUATORS:
-                if actuator_id in self.custom_positions:
-                    self.actuator_positions[actuator_id] = self.custom_positions[actuator_id]
-                else:
-                    x, y = get_grid_position(actuator_id, self.actuator_spacing)
-                    self.actuator_positions[actuator_id] = (x, y)
-        else:
-            for actuator_id in ACTUATORS:
-                x, y = get_grid_position(actuator_id, self.actuator_spacing)
-                self.actuator_positions[actuator_id] = (x, y)
-        
-        if hasattr(self, 'actuator_positions'):
-            self.compute_actuator_triangles()
+        self.actuator_positions = self.custom_positions.copy()
     
     # Recording methods
     def start_recording(self, pattern_name: str):
@@ -581,11 +614,11 @@ class EnhancedTactileEngine:
         )
         
         self.current_pattern_steps.append(step)
-        print(f"📝 Recorded step {len(self.current_pattern_steps)}: Actuator {actuator_id}, Intensity {intensity}, Time {timestamp:.1f}ms")
+        print(f"📝 Recorded step {len(self.current_pattern_steps)}: Actuator {actuator_id}, Intensity {intensity}")
     
     def save_pattern(self, pattern: TactilePattern) -> bool:
         """Save pattern to file"""
-        ensure_patterns_folder()
+        ensure_folders()
         filename = f"{pattern.name.replace(' ', '_')}.json"
         filepath = os.path.join(PATTERNS_FOLDER, filename)
         
@@ -616,7 +649,7 @@ class EnhancedTactileEngine:
     
     def get_saved_patterns(self) -> List[str]:
         """Get list of saved pattern files"""
-        ensure_patterns_folder()
+        ensure_folders()
         pattern_files = []
         
         for filename in os.listdir(PATTERNS_FOLDER):
@@ -645,7 +678,7 @@ class EnhancedTactileEngine:
         self.execute_soa_sequence(soa_steps)
         print(f"▶️ Playing pattern: {pattern.name} ({len(pattern.steps)} steps)")
     
-    # Trajectory methods (unchanged from original)
+    # Trajectory methods
     def start_trajectory_mode(self):
         """Enable trajectory drawing mode"""
         self.trajectory_mode = True
@@ -829,7 +862,6 @@ class EnhancedTactileEngine:
                         self.mouse_vibration_active = True
                         self.hover_timer.start(self.pattern_duration)
                         
-                        # Record phantom activation if recording is active
                         if self.is_recording:
                             self.add_recording_step(phantom.physical_actuator_1, phantom.required_intensity_1)
                             self.add_recording_step(phantom.physical_actuator_2, phantom.required_intensity_2)
@@ -840,20 +872,17 @@ class EnhancedTactileEngine:
                     self.mouse_vibration_active = True
                     self.hover_timer.start(self.pattern_duration)
                     
-                    # Record actuator activation if recording is active
                     if self.is_recording:
                         self.add_recording_step(target_id, self.pattern_intensity)
         else:
-            # Simulation mode - still record for testing
+            # Simulation mode
             if not is_phantom and self.is_recording:
                 self.add_recording_step(target_id, self.pattern_intensity)
-                print(f"📝 Recorded (simulation): Actuator {target_id}, Intensity {self.pattern_intensity}")
             elif is_phantom and self.is_recording and target_id < len(self.enhanced_phantoms):
                 phantom = self.enhanced_phantoms[target_id]
                 self.add_recording_step(phantom.physical_actuator_1, phantom.required_intensity_1)
                 self.add_recording_step(phantom.physical_actuator_2, phantom.required_intensity_2)
                 self.add_recording_step(phantom.physical_actuator_3, phantom.required_intensity_3)
-                print(f"📝 Recorded (simulation): Phantom {target_id} -> Actuators [{phantom.physical_actuator_1}, {phantom.physical_actuator_2}, {phantom.physical_actuator_3}]")
             
             self.mouse_vibration_active = False
     
@@ -943,23 +972,30 @@ class EnhancedTactileEngine:
         self.trajectory_phantoms = []
 
 class EnhancedTactileVisualization(QWidget):
-    """Enhanced visualization with larger layout and trajectory drawing support"""
+    """Enhanced visualization with drag-and-drop layout editing"""
     
     actuator_hovered = pyqtSignal(int)
     phantom_hovered = pyqtSignal(int)
     mouse_left = pyqtSignal()
     trajectory_drawn = pyqtSignal()
+    actuator_moved = pyqtSignal(int, float, float)
     
     def __init__(self):
         super().__init__()
-        self.setMinimumSize(600, 500)  # Increased minimum size
+        self.setMinimumSize(600, 500)
         self.setMouseTracking(True)
         self.engine = None
         self.actuator_screen_positions = {}
         self.phantom_screen_positions = {}
-        self.hover_radius = 25  # Increased hover radius
-        self.phantom_hover_radius = 30  # Increased phantom hover radius
+        self.hover_radius = 25
+        self.phantom_hover_radius = 30
         self.show_triangles = False
+        
+        # Layout editor state
+        self.layout_editor_mode = False
+        self.dragging_actuator = None
+        self.drag_offset = (0, 0)
+        self.drag_start_pos = None
         
         # Trajectory drawing state
         self.is_drawing_trajectory = False
@@ -973,14 +1009,42 @@ class EnhancedTactileVisualization(QWidget):
         self.show_triangles = show
         self.update()
     
+    def set_layout_editor_mode(self, enabled: bool):
+        """Enable/disable layout editor mode"""
+        self.layout_editor_mode = enabled
+        if enabled:
+            self.setCursor(QCursor(Qt.CursorShape.OpenHandCursor))
+        else:
+            self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
+        self.update()
+    
     def mousePressEvent(self, event: QMouseEvent):
-        """Handle mouse press events for trajectory drawing"""
+        """Handle mouse press events"""
         if not self.engine:
             return
         
+        mouse_pos = event.position()
+        
+        # Layout editor mode - actuator dragging
+        if self.layout_editor_mode and event.button() == Qt.MouseButton.LeftButton:
+            hovered_actuator = self.get_actuator_at_position(mouse_pos)
+            if hovered_actuator is not None:
+                self.dragging_actuator = hovered_actuator
+                self.drag_start_pos = mouse_pos
+                
+                # Calculate offset from actuator center
+                actuator_screen_pos = self.actuator_screen_positions[hovered_actuator]
+                self.drag_offset = (
+                    mouse_pos.x() - actuator_screen_pos[0],
+                    mouse_pos.y() - actuator_screen_pos[1]
+                )
+                
+                self.setCursor(QCursor(Qt.CursorShape.ClosedHandCursor))
+                return
+        
+        # Trajectory drawing mode
         if self.engine.trajectory_mode and event.button() == Qt.MouseButton.LeftButton:
             self.is_drawing_trajectory = True
-            mouse_pos = event.position()
             self.trajectory_start_pos = mouse_pos
             
             physical_pos = self.screen_to_physical(mouse_pos)
@@ -988,13 +1052,26 @@ class EnhancedTactileVisualization(QWidget):
                 self.engine.current_trajectory = [physical_pos]
     
     def mouseMoveEvent(self, event: QMouseEvent):
-        """Handle mouse move events for hover detection and trajectory drawing"""
+        """Handle mouse move events"""
         if not self.engine:
             return
         
         mouse_pos = event.position()
         
-        # Handle trajectory drawing
+        # Layout editor mode - actuator dragging
+        if self.layout_editor_mode and self.dragging_actuator is not None:
+            physical_pos = self.screen_to_physical(mouse_pos)
+            if physical_pos:
+                # Constrain to reasonable bounds
+                x = max(-50, min(250, physical_pos[0]))
+                y = max(-50, min(250, physical_pos[1]))
+                
+                self.engine.set_actuator_position(self.dragging_actuator, (x, y))
+                self.actuator_moved.emit(self.dragging_actuator, x, y)
+                self.update()
+            return
+        
+        # Trajectory drawing mode
         if self.is_drawing_trajectory and self.engine.trajectory_mode:
             physical_pos = self.screen_to_physical(mouse_pos)
             if physical_pos:
@@ -1004,8 +1081,8 @@ class EnhancedTactileVisualization(QWidget):
                     self.update()
             return
         
-        # Normal hover detection
-        if not self.engine.trajectory_mode:
+        # Normal hover detection (only when not in layout editor mode)
+        if not self.layout_editor_mode and not self.engine.trajectory_mode:
             hovered_phantom = self.get_phantom_at_position(mouse_pos)
             if hovered_phantom is not None:
                 self.phantom_hovered.emit(hovered_phantom)
@@ -1016,12 +1093,29 @@ class EnhancedTactileVisualization(QWidget):
                 self.actuator_hovered.emit(hovered_actuator)
             else:
                 self.mouse_left.emit()
+        
+        # Layout editor mode - cursor changes
+        if self.layout_editor_mode:
+            hovered_actuator = self.get_actuator_at_position(mouse_pos)
+            if hovered_actuator is not None:
+                self.setCursor(QCursor(Qt.CursorShape.OpenHandCursor))
+            else:
+                self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
     
     def mouseReleaseEvent(self, event: QMouseEvent):
-        """Handle mouse release events to finish trajectory drawing"""
+        """Handle mouse release events"""
         if not self.engine:
             return
         
+        # Layout editor mode - stop dragging
+        if self.layout_editor_mode and self.dragging_actuator is not None:
+            self.dragging_actuator = None
+            self.drag_offset = (0, 0)
+            self.drag_start_pos = None
+            self.setCursor(QCursor(Qt.CursorShape.OpenHandCursor))
+            return
+        
+        # Trajectory drawing mode
         if (self.is_drawing_trajectory and self.engine.trajectory_mode and 
             event.button() == Qt.MouseButton.LeftButton):
             
@@ -1038,7 +1132,8 @@ class EnhancedTactileVisualization(QWidget):
     
     def leaveEvent(self, event):
         """Handle mouse leaving the widget"""
-        self.mouse_left.emit()
+        if not self.layout_editor_mode:
+            self.mouse_left.emit()
     
     def distance_between_points(self, p1: Tuple[float, float], p2: Tuple[float, float]) -> float:
         """Calculate distance between two points"""
@@ -1059,16 +1154,16 @@ class EnhancedTactileVisualization(QWidget):
         min_x, max_x = min(x_coords), max(x_coords)
         min_y, max_y = min(y_coords), max(y_coords)
         
-        margin = 30  # Reduced margin for more space
+        margin = 30
         available_width = self.width() - 2 * margin
-        available_height = self.height() - 2 * margin - 60  # Reduced title space
+        available_height = self.height() - 2 * margin - 60
         
         data_width = max_x - min_x if max_x > min_x else 100
         data_height = max_y - min_y if max_y > min_y else 100
         
         scale_x = available_width / data_width if data_width > 0 else 1
         scale_y = available_height / data_height if data_height > 0 else 1
-        scale = min(scale_x, scale_y) * 0.9  # Increased scale factor
+        scale = min(scale_x, scale_y) * 0.9
         
         physical_x = (screen_pos.x() - margin) / scale + min_x
         physical_y = (screen_pos.y() - margin - 40) / scale + min_y
@@ -1110,16 +1205,16 @@ class EnhancedTactileVisualization(QWidget):
         min_x, max_x = min(x_coords), max(x_coords)
         min_y, max_y = min(y_coords), max(y_coords)
         
-        margin = 30  # Reduced margin
+        margin = 30
         available_width = self.width() - 2 * margin
-        available_height = self.height() - 2 * margin - 60  # Reduced title space
+        available_height = self.height() - 2 * margin - 60
         
         data_width = max_x - min_x if max_x > min_x else 100
         data_height = max_y - min_y if max_y > min_y else 100
         
         scale_x = available_width / data_width if data_width > 0 else 1
         scale_y = available_height / data_height if data_height > 0 else 1
-        scale = min(scale_x, scale_y) * 0.9  # Increased scale factor
+        scale = min(scale_x, scale_y) * 0.9
         
         def pos_to_screen(pos):
             screen_x = margin + (pos[0] - min_x) * scale
@@ -1129,24 +1224,33 @@ class EnhancedTactileVisualization(QWidget):
         self.actuator_screen_positions = {}
         self.phantom_screen_positions = {}
         
-        # Title (smaller)
+        # Title
         painter.setPen(QPen(QColor(0, 0, 0)))
         font = QFont()
         font.setBold(True)
-        font.setPointSize(10)  # Smaller font
+        font.setPointSize(10)
         painter.setFont(font)
         
-        title_text = f"🎨 Enhanced Tactile v3.0 - {self.engine.current_waveform_type} Waveform"
+        title_text = f"🎨 Enhanced Tactile v3.1 - {self.engine.current_layout_name}"
+        if self.layout_editor_mode:
+            title_text += " [LAYOUT EDITOR]"
         painter.drawText(margin, 20, title_text)
         
-        # Recording indicator
+        # Mode indicators
+        status_text = ""
         if self.engine.is_recording:
+            status_text += f"🔴 REC ({len(self.engine.current_pattern_steps)} steps) "
+        if self.engine.trajectory_mode:
+            status_text += "🎨 TRAJECTORY MODE "
+        if self.layout_editor_mode:
+            status_text += "✏️ LAYOUT EDITOR "
+        
+        if status_text:
             painter.setPen(QPen(QColor(255, 0, 0)))
             font.setBold(True)
-            font.setPointSize(12)
+            font.setPointSize(9)
             painter.setFont(font)
-            step_count = len(self.engine.current_pattern_steps)
-            painter.drawText(self.width() - 200, 20, f"🔴 REC ({step_count} steps)")
+            painter.drawText(self.width() - 400, 20, status_text)
         
         # Draw trajectory if being drawn or completed
         if self.engine and self.engine.current_trajectory:
@@ -1156,7 +1260,6 @@ class EnhancedTactileVisualization(QWidget):
                 trajectory_screen_points.append(screen_point)
             
             if len(trajectory_screen_points) > 1:
-                # Draw trajectory path
                 painter.setPen(QPen(QColor(0, 150, 255), 3))
                 for i in range(len(trajectory_screen_points) - 1):
                     painter.drawLine(
@@ -1164,15 +1267,14 @@ class EnhancedTactileVisualization(QWidget):
                         int(trajectory_screen_points[i+1][0]), int(trajectory_screen_points[i+1][1])
                     )
                 
-                # Draw start and end markers
                 if trajectory_screen_points:
-                    # Start marker (green)
+                    # Start marker
                     painter.setPen(QPen(QColor(0, 200, 0), 2))
                     painter.setBrush(QBrush(QColor(0, 255, 0, 100)))
                     start_point = trajectory_screen_points[0]
                     painter.drawEllipse(int(start_point[0] - 8), int(start_point[1] - 8), 16, 16)
                     
-                    # End marker (red)
+                    # End marker
                     painter.setPen(QPen(QColor(200, 0, 0), 2))
                     painter.setBrush(QBrush(QColor(255, 0, 0, 100)))
                     end_point = trajectory_screen_points[-1]
@@ -1180,7 +1282,7 @@ class EnhancedTactileVisualization(QWidget):
         
         # Draw triangles if enabled
         if self.show_triangles and hasattr(self.engine, 'actuator_triangles'):
-            for triangle in self.engine.actuator_triangles[:8]:
+            for triangle in self.engine.actuator_triangles[:10]:  # Show only best triangles
                 screen_positions = [pos_to_screen(pos) for pos in triangle['positions']]
                 points = [QPointF(pos[0], pos[1]) for pos in screen_positions]
                 
@@ -1196,7 +1298,7 @@ class EnhancedTactileVisualization(QWidget):
                 painter.setBrush(QBrush(color))
                 painter.drawPolygon(points)
         
-        # Draw actuators (larger)
+        # Draw actuators
         for actuator_id in ACTUATORS:
             if actuator_id not in self.engine.actuator_positions:
                 continue
@@ -1213,34 +1315,49 @@ class EnhancedTactileVisualization(QWidget):
                 actuator_id in [p.physical_actuator_1, p.physical_actuator_2, p.physical_actuator_3] 
                 for p in self.engine.enhanced_phantoms
             )
+            is_being_dragged = (self.dragging_actuator == actuator_id)
             
             # Color coding
-            if is_vibrating:
+            if is_being_dragged:
+                color = QColor(255, 255, 0)  # Yellow for dragging
+            elif is_vibrating:
                 color = QColor(255, 50, 50)
             elif is_hovered:
                 color = QColor(255, 150, 0)
             elif in_phantom:
                 color = QColor(150, 0, 255)
+            elif self.layout_editor_mode:
+                color = QColor(100, 150, 255)  # Blue tint in editor mode
             else:
                 color = QColor(120, 120, 120)
             
-            # Draw actuator (larger)
+            # Draw actuator
             painter.setPen(QPen(QColor(0, 0, 0), 2))
             painter.setBrush(QBrush(color))
             
-            radius = 20 if is_hovered else 16  # Increased size
+            radius = 22 if is_being_dragged else (20 if is_hovered else 16)
             painter.drawEllipse(int(screen_x - radius), int(screen_y - radius), 
                               radius * 2, radius * 2)
             
             # Actuator ID
             painter.setPen(QPen(QColor(255, 255, 255)))
-            font.setPointSize(10)  # Larger font
+            font.setPointSize(10)
             font.setBold(True)
             painter.setFont(font)
             text_width = len(str(actuator_id)) * 6
             painter.drawText(int(screen_x - text_width/2), int(screen_y + 4), str(actuator_id))
+            
+            # Position coordinates in layout editor mode
+            if self.layout_editor_mode:
+                painter.setPen(QPen(QColor(0, 0, 0)))
+                font.setPointSize(7)
+                font.setBold(False)
+                painter.setFont(font)
+                coord_text = f"({pos[0]:.0f},{pos[1]:.0f})"
+                text_width = len(coord_text) * 4
+                painter.drawText(int(screen_x - text_width/2), int(screen_y + 30), coord_text)
         
-        # Draw phantoms (larger)
+        # Draw phantoms
         for phantom in self.engine.enhanced_phantoms:
             phantom_screen = pos_to_screen(phantom.virtual_position)
             self.phantom_screen_positions[phantom.phantom_id] = phantom_screen
@@ -1258,7 +1375,7 @@ class EnhancedTactileVisualization(QWidget):
                 phantom_color = QColor(200, 100, 200)
                 radius = 12
             
-            # Draw phantom (larger)
+            # Draw phantom
             painter.setPen(QPen(QColor(0, 0, 0), 2))
             painter.setBrush(QBrush(phantom_color))
             painter.drawEllipse(int(phantom_screen[0] - radius), int(phantom_screen[1] - radius),
@@ -1286,15 +1403,22 @@ class EnhancedTactileVisualization(QWidget):
                         painter.drawLine(int(phantom_screen[0]), int(phantom_screen[1]),
                                        int(phys_screen[0]), int(phys_screen[1]))
         
-        # Legend (smaller, at bottom)
+        # Legend
         legend_y = self.height() - 20
         painter.setPen(QPen(QColor(0, 0, 0)))
         font.setBold(False)
-        font.setPointSize(7)  # Smaller font
+        font.setPointSize(7)
         painter.setFont(font)
         
-        # Trajectory mode indicator
-        if self.engine and self.engine.trajectory_mode:
+        if self.layout_editor_mode:
+            painter.setPen(QPen(QColor(0, 100, 255)))
+            font.setBold(True)
+            painter.setFont(font)
+            painter.drawText(margin, legend_y - 35, "✏️ LAYOUT EDITOR - Drag actuators to new positions")
+            font.setBold(False)
+            painter.setFont(font)
+            painter.setPen(QPen(QColor(0, 0, 0)))
+        elif self.engine and self.engine.trajectory_mode:
             painter.setPen(QPen(QColor(0, 100, 255)))
             font.setBold(True)
             painter.setFont(font)
@@ -1306,7 +1430,7 @@ class EnhancedTactileVisualization(QWidget):
         painter.drawText(margin, legend_y, "🔴 Vibrating  🟠 Hovered  🟣 Phantom  ⚫ Inactive")
 
 class EnhancedTactileGUI(QWidget):
-    """Enhanced GUI with waveform selection and pattern recording"""
+    """Enhanced GUI with layout editor and waveform selection"""
     
     def __init__(self):
         super().__init__()
@@ -1317,7 +1441,7 @@ class EnhancedTactileGUI(QWidget):
         # Recording update timer
         self.recording_update_timer = QTimer()
         self.recording_update_timer.timeout.connect(self.update_recording_display)
-        self.recording_update_timer.setInterval(500)  # Update every 500ms
+        self.recording_update_timer.setInterval(500)
         
         self.setup_ui()
         self.setup_api()
@@ -1335,23 +1459,24 @@ class EnhancedTactileGUI(QWidget):
         self.viz.phantom_hovered.connect(lambda pid: self.engine.on_mouse_hover(pid, True))
         self.viz.mouse_left.connect(self.engine.on_mouse_leave)
         self.viz.trajectory_drawn.connect(self.on_trajectory_completed)
+        self.viz.actuator_moved.connect(self.on_actuator_moved)
     
     def setup_ui(self):
         # Use a splitter for better space management
         main_layout = QHBoxLayout(self)
         splitter = QSplitter(Qt.Orientation.Horizontal)
         
-        # Left panel for controls (narrower)
+        # Left panel for controls
         left_panel = QWidget()
-        left_panel.setMaximumWidth(350)  # Fixed width for controls
+        left_panel.setMaximumWidth(380)
         left_layout = QVBoxLayout(left_panel)
         
         # Title
-        title = QLabel("🎨 Enhanced Tactile Creator v3.0")
+        title = QLabel("🎨 Enhanced Tactile Creator v3.1")
         title.setStyleSheet("font-weight: bold; font-size: 14px; color: #2E86AB;")
         left_layout.addWidget(title)
         
-        subtitle = QLabel("Waveforms • Recording • Trajectory • Phantoms")
+        subtitle = QLabel("Layout Editor • Waveforms • Recording • Phantoms")
         subtitle.setStyleSheet("font-style: italic; color: #666; font-size: 10px;")
         left_layout.addWidget(subtitle)
         
@@ -1383,6 +1508,66 @@ class EnhancedTactileGUI(QWidget):
         self.refresh_btn.clicked.connect(self.refresh_devices)
         self.connect_btn.clicked.connect(self.toggle_connection)
         scroll_layout.addWidget(conn_group)
+        
+        # Layout Editor
+        layout_group = QGroupBox("✏️ Layout Editor")
+        layout_layout = QVBoxLayout(layout_group)
+        
+        # Current layout info
+        self.current_layout_label = QLabel(f"Current: {self.engine.current_layout_name}")
+        self.current_layout_label.setStyleSheet("font-weight: bold;")
+        layout_layout.addWidget(self.current_layout_label)
+        
+        # Layout editor controls
+        layout_btn_layout = QHBoxLayout()
+        self.layout_editor_btn = QPushButton("✏️ Edit Layout")
+        self.layout_editor_btn.clicked.connect(self.toggle_layout_editor)
+        self.layout_editor_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                padding: 8px;
+                font-weight: bold;
+                border-radius: 4px;
+            }
+        """)
+        
+        self.reset_layout_btn = QPushButton("🔄 Reset Grid")
+        self.reset_layout_btn.clicked.connect(self.reset_layout)
+        
+        layout_btn_layout.addWidget(self.layout_editor_btn)
+        layout_btn_layout.addWidget(self.reset_layout_btn)
+        layout_layout.addLayout(layout_btn_layout)
+        
+        # Save/Load layout
+        layout_save_layout = QHBoxLayout()
+        self.layout_name_edit = QLineEdit("Custom_Layout")
+        self.save_layout_btn = QPushButton("💾 Save")
+        self.save_layout_btn.clicked.connect(self.save_layout)
+        
+        layout_save_layout.addWidget(QLabel("Name:"))
+        layout_save_layout.addWidget(self.layout_name_edit)
+        layout_save_layout.addWidget(self.save_layout_btn)
+        layout_layout.addLayout(layout_save_layout)
+        
+        # Layout library
+        self.layout_list = QListWidget()
+        self.layout_list.setMaximumHeight(80)
+        self.load_layout_list()
+        layout_layout.addWidget(self.layout_list)
+        
+        layout_lib_layout = QHBoxLayout()
+        self.load_layout_btn = QPushButton("📂 Load")
+        self.load_layout_btn.clicked.connect(self.load_selected_layout)
+        
+        self.refresh_layouts_btn = QPushButton("🔄")
+        self.refresh_layouts_btn.clicked.connect(self.load_layout_list)
+        
+        layout_lib_layout.addWidget(self.load_layout_btn)
+        layout_lib_layout.addWidget(self.refresh_layouts_btn)
+        layout_layout.addLayout(layout_lib_layout)
+        
+        scroll_layout.addWidget(layout_group)
         
         # Waveform Selection
         waveform_group = QGroupBox("🌊 Waveform Selection")
@@ -1425,8 +1610,8 @@ class EnhancedTactileGUI(QWidget):
         recording_group = QGroupBox("🔴 Pattern Recording")
         recording_layout = QFormLayout(recording_group)
         
-        self.pattern_name_edit = QLabel("New Pattern")
-        recording_layout.addRow("Name:", self.pattern_name_edit)
+        self.pattern_name_edit_rec = QLineEdit("New Pattern")
+        recording_layout.addRow("Name:", self.pattern_name_edit_rec)
         
         record_btn_layout = QHBoxLayout()
         self.record_btn = QPushButton("🔴 Start Recording")
@@ -1551,7 +1736,7 @@ class EnhancedTactileGUI(QWidget):
         scroll.setWidget(scroll_widget)
         left_layout.addWidget(scroll)
         
-        # Right panel for visualization (larger)
+        # Right panel for visualization
         viz_panel = QWidget()
         viz_layout = QVBoxLayout(viz_panel)
         
@@ -1560,22 +1745,23 @@ class EnhancedTactileGUI(QWidget):
         self.viz.set_engine(self.engine)
         viz_layout.addWidget(self.viz)
         
-        # Info display (smaller)
+        # Info display
         self.info_text = QTextEdit()
         self.info_text.setMaximumHeight(60)
         self.info_text.setReadOnly(True)
-        self.info_text.setPlainText("🎨 Enhanced tactile system v3.0 ready! Choose waveforms, record patterns, draw trajectories.")
+        self.info_text.setPlainText("🎨 Enhanced tactile system v3.1 ready! Edit layout, choose waveforms, record patterns, draw trajectories.")
         viz_layout.addWidget(self.info_text)
         
         # Add panels to splitter
         splitter.addWidget(left_panel)
         splitter.addWidget(viz_panel)
-        splitter.setSizes([350, 650])  # Give more space to visualization
+        splitter.setSizes([380, 620])
         
         main_layout.addWidget(splitter)
         
         # Initialize
         self.update_pattern_parameters()
+        self.update_layout_display()
     
     def on_waveform_changed(self, waveform_type: str):
         """Handle waveform type change"""
@@ -1588,6 +1774,93 @@ class EnhancedTactileGUI(QWidget):
         self.engine.set_waveform_frequency(float(frequency))
         self.info_text.setPlainText(f"🎵 Frequency set to: {frequency}Hz")
     
+    def toggle_layout_editor(self):
+        """Toggle layout editor mode"""
+        current_mode = self.viz.layout_editor_mode
+        new_mode = not current_mode
+        
+        self.viz.set_layout_editor_mode(new_mode)
+        
+        if new_mode:
+            self.layout_editor_btn.setText("✅ Exit Editor")
+            self.layout_editor_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #FF5722;
+                    color: white;
+                    padding: 8px;
+                    font-weight: bold;
+                    border-radius: 4px;
+                }
+            """)
+            self.info_text.setPlainText("✏️ Layout editor enabled - drag actuators to new positions")
+        else:
+            self.layout_editor_btn.setText("✏️ Edit Layout")
+            self.layout_editor_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #2196F3;
+                    color: white;
+                    padding: 8px;
+                    font-weight: bold;
+                    border-radius: 4px;
+                }
+            """)
+            self.info_text.setPlainText("✏️ Layout editor disabled")
+    
+    def on_actuator_moved(self, actuator_id: int, x: float, y: float):
+        """Handle actuator position change"""
+        self.info_text.setPlainText(f"📍 Moved actuator {actuator_id} to ({x:.1f}, {y:.1f})")
+    
+    def reset_layout(self):
+        """Reset to default 4x4 grid layout"""
+        self.engine.reset_to_default_layout()
+        self.viz.update()
+        self.update_layout_display()
+        self.info_text.setPlainText("🔄 Reset to default 4x4 grid layout")
+    
+    def save_layout(self):
+        """Save current layout"""
+        layout_name = self.layout_name_edit.text().strip()
+        if not layout_name:
+            self.info_text.setPlainText("❌ Please enter a layout name")
+            return
+        
+        success = self.engine.save_layout(layout_name, "Custom layout saved from editor")
+        if success:
+            self.load_layout_list()
+            self.update_layout_display()
+            self.info_text.setPlainText(f"💾 Layout saved: {layout_name}")
+        else:
+            self.info_text.setPlainText("❌ Failed to save layout")
+    
+    def load_layout_list(self):
+        """Load the list of saved layouts"""
+        self.layout_list.clear()
+        layout_files = self.engine.get_saved_layouts()
+        for filename in layout_files:
+            self.layout_list.addItem(filename)
+    
+    def load_selected_layout(self):
+        """Load the selected layout"""
+        current_item = self.layout_list.currentItem()
+        if not current_item:
+            self.info_text.setPlainText("❌ No layout selected")
+            return
+        
+        filename = current_item.text()
+        filepath = os.path.join(LAYOUTS_FOLDER, filename)
+        
+        layout = self.engine.load_layout(filepath)
+        if layout:
+            self.viz.update()
+            self.update_layout_display()
+            self.info_text.setPlainText(f"📂 Layout loaded: {layout.name}")
+        else:
+            self.info_text.setPlainText("❌ Failed to load layout")
+    
+    def update_layout_display(self):
+        """Update the current layout display"""
+        self.current_layout_label.setText(f"Current: {self.engine.current_layout_name}")
+    
     def update_recording_display(self):
         """Update recording display with current step count"""
         if self.engine.is_recording:
@@ -1598,15 +1871,14 @@ class EnhancedTactileGUI(QWidget):
                 f"🔴 Recording: {step_count} steps captured\n"
                 f"Time: {elapsed_time/1000:.1f}s | Waveform: {self.engine.current_waveform_type} @ {self.engine.waveform_frequency}Hz"
             )
-            self.viz.update()  # Update visualization to show step count
+            self.viz.update()
     
     def toggle_recording(self):
         """Toggle pattern recording"""
         if not self.engine.is_recording:
             # Start recording
-            pattern_name = f"Pattern_{int(time.time())}"
+            pattern_name = self.pattern_name_edit_rec.text().strip() or f"Pattern_{int(time.time())}"
             self.engine.start_recording(pattern_name)
-            self.pattern_name_edit.setText(pattern_name)
             
             # Start update timer
             self.recording_update_timer.start()
@@ -1857,11 +2129,11 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     
     window = QMainWindow()
-    window.setWindowTitle("🎨 Enhanced Tactile Pattern Creator v3.0")
+    window.setWindowTitle("🎨 Enhanced Tactile Pattern Creator v3.1 - Layout Editor")
     
     widget = EnhancedTactileGUI()
     window.setCentralWidget(widget)
-    window.resize(1000, 700)  # Adjusted window size
+    window.resize(1000, 700)
     window.show()
     
     sys.exit(app.exec())
