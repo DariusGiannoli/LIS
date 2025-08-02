@@ -1,0 +1,1444 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1200</width>
+    <height>700</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>🎯 Boss Layout - Buzz vs Pulse vs Motion Comparison</string>
+  </property>
+  <property name="styleSheet">
+   <string>QMainWindow {
+    background-color: #2E2E2E;
+}
+QWidget {
+    background-color: #2E2E2E;
+    color: white;
+}
+QGroupBox {
+    font-weight: bold;
+    color: #FFFFFF;
+    border: 1px solid #555;
+    margin-top: 5px;
+    padding-top: 5px;
+}
+QGroupBox::title {
+    color: #FFFFFF;
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 5px 0 5px;
+}
+QPushButton {
+    background-color: #3E3E3E;
+    color: white;
+    border: 1px solid #555;
+    padding: 5px;
+    font-weight: bold;
+    border-radius: 3px;
+}
+QPushButton:hover {
+    background-color: #4E4E4E;
+}
+QComboBox, QSpinBox {
+    background-color: #3E3E3E;
+    color: white;
+    border: 1px solid #555;
+    padding: 2px;
+}
+QListWidget {
+    background-color: #3E3E3E;
+    color: white;
+    border: 1px solid #555;
+    font-size: 10px;
+}
+QListWidget::item {
+    padding: 3px;
+    border-bottom: 1px solid #555;
+}
+QListWidget::item:selected {
+    background-color: #2196F3;
+}
+QTextEdit {
+    font-size: 10px;
+    background-color: #3E3E3E;
+    color: white;
+    border: 1px solid #555;
+    padding: 5px;
+}
+QCheckBox {
+    font-weight: bold; 
+    color: #9C27B0; 
+    font-size: 10px;
+}
+QCheckBox::indicator {
+    width: 15px;
+    height: 15px;
+    background-color: #3E3E3E;
+    border: 1px solid #555;
+}
+QCheckBox::indicator:checked {
+    background-color: #9C27B0;
+}
+QLabel {
+    color: white;
+}
+QTabWidget::pane {
+    border: 1px solid #555;
+    background-color: #2E2E2E;
+}
+QTabBar::tab {
+    background-color: #3E3E3E;
+    color: white;
+    padding: 8px 16px;
+    margin-right: 2px;
+    border: 1px solid #555;
+}
+QTabBar::tab:selected {
+    background-color: #2196F3;
+}</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QHBoxLayout" name="main_layout">
+    <property name="spacing">
+     <number>5</number>
+    </property>
+    <property name="leftMargin">
+     <number>5</number>
+    </property>
+    <property name="topMargin">
+     <number>5</number>
+    </property>
+    <property name="rightMargin">
+     <number>5</number>
+    </property>
+    <property name="bottomMargin">
+     <number>5</number>
+    </property>
+    <item>
+     <widget class="QScrollArea" name="left_scroll">
+      <property name="maximumSize">
+       <size>
+        <width>380</width>
+        <height>16777215</height>
+       </size>
+      </property>
+      <property name="minimumSize">
+       <size>
+        <width>380</width>
+        <height>0</height>
+       </size>
+      </property>
+      <property name="widgetResizable">
+       <bool>true</bool>
+      </property>
+      <widget class="QWidget" name="left_panel">
+       <property name="geometry">
+        <rect>
+         <x>0</x>
+         <y>0</y>
+         <width>378</width>
+         <height>1000</height>
+        </rect>
+       </property>
+       <layout class="QVBoxLayout" name="left_layout">
+        <property name="spacing">
+         <number>5</number>
+        </property>
+        <item>
+         <widget class="QLabel" name="title_label">
+          <property name="text">
+           <string>🎯 Comparative Pattern Interface</string>
+          </property>
+          <property name="styleSheet">
+           <string>font-weight: bold; font-size: 14px; color: #FFFFFF;</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="subtitle_label">
+          <property name="text">
+           <string>Boss's Layout (2-4-4-4-2)</string>
+          </property>
+          <property name="styleSheet">
+           <string>font-style: italic; color: #CCCCCC; font-size: 10px;</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QGroupBox" name="connection_group">
+          <property name="title">
+           <string>Connection</string>
+          </property>
+          <layout class="QVBoxLayout" name="connection_layout">
+           <property name="spacing">
+            <number>3</number>
+           </property>
+           <item>
+            <layout class="QHBoxLayout" name="device_layout">
+             <item>
+              <widget class="QLabel" name="device_label">
+               <property name="text">
+                <string>Device:</string>
+               </property>
+               <property name="styleSheet">
+                <string>color: white; font-weight: bold;</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QComboBox" name="device_combo">
+               <property name="maximumSize">
+                <size>
+                 <width>16777215</width>
+                 <height>25</height>
+                </size>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="refresh_btn">
+               <property name="maximumSize">
+                <size>
+                 <width>30</width>
+                 <height>25</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>↻</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="connect_layout">
+             <item>
+              <widget class="QPushButton" name="connect_btn">
+               <property name="maximumSize">
+                <size>
+                 <width>16777215</width>
+                 <height>25</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>Connect</string>
+               </property>
+               <property name="styleSheet">
+                <string>background-color: #2196F3; border: 1px solid #1976D2;</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="status_label">
+               <property name="text">
+                <string>Disconnected</string>
+               </property>
+               <property name="styleSheet">
+                <string>color: #FF5722; font-weight: bold; font-size: 10px;</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
+         <widget class="QGroupBox" name="global_params_group">
+          <property name="title">
+           <string>🌐 Global Parameters</string>
+          </property>
+          <layout class="QFormLayout" name="global_params_layout">
+           <property name="verticalSpacing">
+            <number>3</number>
+           </property>
+           <item row="0" column="0">
+            <widget class="QLabel" name="waveform_label">
+             <property name="text">
+              <string>Waveform:</string>
+             </property>
+             <property name="styleSheet">
+              <string>color: white; font-weight: bold;</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QComboBox" name="waveform_combo">
+             <property name="maximumSize">
+              <size>
+               <width>16777215</width>
+               <height>25</height>
+              </size>
+             </property>
+             <item>
+              <property name="text">
+               <string>Sine</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Square</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Saw</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Triangle</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Chirp</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>FM</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>PWM</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Noise</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="frequency_label">
+             <property name="text">
+              <string>Frequency:</string>
+             </property>
+             <property name="styleSheet">
+              <string>color: white; font-weight: bold;</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QSpinBox" name="frequency_spin">
+             <property name="maximumSize">
+              <size>
+               <width>16777215</width>
+               <height>25</height>
+              </size>
+             </property>
+             <property name="suffix">
+              <string> Hz</string>
+             </property>
+             <property name="minimum">
+              <number>50</number>
+             </property>
+             <property name="maximum">
+              <number>1000</number>
+             </property>
+             <property name="value">
+              <number>250</number>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="intensity_label">
+             <property name="text">
+              <string>Intensity:</string>
+             </property>
+             <property name="styleSheet">
+              <string>color: white; font-weight: bold;</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QSpinBox" name="intensity_spin">
+             <property name="maximumSize">
+              <size>
+               <width>16777215</width>
+               <height>25</height>
+              </size>
+             </property>
+             <property name="minimum">
+              <number>1</number>
+             </property>
+             <property name="maximum">
+              <number>15</number>
+             </property>
+             <property name="value">
+              <number>8</number>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="duration_label">
+             <property name="text">
+              <string>Duration:</string>
+             </property>
+             <property name="styleSheet">
+              <string>color: white; font-weight: bold;</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QSpinBox" name="duration_spin">
+             <property name="maximumSize">
+              <size>
+               <width>16777215</width>
+               <height>25</height>
+              </size>
+             </property>
+             <property name="suffix">
+              <string> ms</string>
+             </property>
+             <property name="minimum">
+              <number>40</number>
+             </property>
+             <property name="maximum">
+              <number>200</number>
+             </property>
+             <property name="value">
+              <number>60</number>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0" colspan="2">
+            <widget class="QCheckBox" name="phantom_checkbox">
+             <property name="text">
+              <string>Enable Phantoms</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
+         <widget class="QGroupBox" name="pattern_library_group">
+          <property name="title">
+           <string>📚 Pattern Library</string>
+          </property>
+          <layout class="QVBoxLayout" name="pattern_library_layout">
+           <property name="spacing">
+            <number>3</number>
+           </property>
+           <item>
+            <widget class="QListWidget" name="pattern_list">
+             <property name="maximumSize">
+              <size>
+               <width>16777215</width>
+               <height>120</height>
+              </size>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="pattern_info">
+             <property name="text">
+              <string>No pattern selected</string>
+             </property>
+             <property name="styleSheet">
+              <string>font-size: 9px; color: #CCCCCC;</string>
+             </property>
+             <property name="wordWrap">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="pattern_buttons_1">
+             <item>
+              <widget class="QPushButton" name="save_current_btn">
+               <property name="maximumSize">
+                <size>
+                 <width>16777215</width>
+                 <height>22</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>💾 Save</string>
+               </property>
+               <property name="styleSheet">
+                <string>background-color: #4CAF50; border: 1px solid #388E3C;</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="replay_btn">
+               <property name="maximumSize">
+                <size>
+                 <width>16777215</width>
+                 <height>22</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>▶️ Play</string>
+               </property>
+               <property name="styleSheet">
+                <string>background-color: #2196F3; border: 1px solid #1976D2;</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <layout class="QHBoxLayout" name="pattern_buttons_2">
+             <item>
+              <widget class="QPushButton" name="load_btn">
+               <property name="maximumSize">
+                <size>
+                 <width>16777215</width>
+                 <height>22</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>📂 Load</string>
+               </property>
+               <property name="styleSheet">
+                <string>background-color: #555; border: 1px solid #777;</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="delete_btn">
+               <property name="maximumSize">
+                <size>
+                 <width>16777215</width>
+                 <height>22</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>🗑️ Del</string>
+               </property>
+               <property name="styleSheet">
+                <string>background-color: #F44336; border: 1px solid #D32F2F;</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
+         <widget class="QTabWidget" name="pattern_tabs">
+          <property name="currentIndex">
+           <number>0</number>
+          </property>
+          <widget class="QWidget" name="buzz_tab">
+           <attribute name="title">
+            <string>🔊 Buzz</string>
+           </attribute>
+           <layout class="QVBoxLayout" name="buzz_layout">
+            <property name="spacing">
+             <number>3</number>
+            </property>
+            <item>
+             <widget class="QLabel" name="buzz_desc">
+              <property name="text">
+               <string>🔊 BUZZ - Static vibration</string>
+              </property>
+              <property name="styleSheet">
+               <string>font-weight: bold; font-size: 12px; color: #FF5722;</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="buzz_controls_group">
+              <property name="title">
+               <string>Controls</string>
+              </property>
+              <layout class="QVBoxLayout" name="buzz_controls_layout">
+               <property name="spacing">
+                <number>3</number>
+               </property>
+               <item>
+                <widget class="QLabel" name="buzz_selection_info">
+                 <property name="text">
+                  <string>No actuators selected</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string>font-weight: bold; font-size: 10px; color: #FFFFFF;</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <layout class="QHBoxLayout" name="buzz_buttons">
+                 <item>
+                  <widget class="QPushButton" name="buzz_clear_selection_btn">
+                   <property name="maximumSize">
+                    <size>
+                     <width>16777215</width>
+                     <height>25</height>
+                    </size>
+                   </property>
+                   <property name="text">
+                    <string>Clear</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QPushButton" name="buzz_select_all_btn">
+                   <property name="maximumSize">
+                    <size>
+                     <width>16777215</width>
+                     <height>25</height>
+                    </size>
+                   </property>
+                   <property name="text">
+                    <string>All</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QPushButton" name="create_buzz_btn">
+                   <property name="maximumSize">
+                    <size>
+                     <width>16777215</width>
+                     <height>25</height>
+                    </size>
+                   </property>
+                   <property name="text">
+                    <string>🔊 Buzz</string>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="buzz_presets_group">
+              <property name="title">
+               <string>Presets</string>
+              </property>
+              <layout class="QVBoxLayout" name="buzz_presets_layout">
+               <property name="spacing">
+                <number>2</number>
+               </property>
+               <item>
+                <widget class="QPushButton" name="buzz_preset_top">
+                 <property name="maximumSize">
+                  <size>
+                   <width>16777215</width>
+                   <height>22</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Top (2)</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string>text-align: left;</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="buzz_preset_row2">
+                 <property name="maximumSize">
+                  <size>
+                   <width>16777215</width>
+                   <height>22</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Row 2 (4)</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string>text-align: left;</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="buzz_preset_row3">
+                 <property name="maximumSize">
+                  <size>
+                   <width>16777215</width>
+                   <height>22</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Row 3 (4)</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string>text-align: left;</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="buzz_preset_row4">
+                 <property name="maximumSize">
+                  <size>
+                   <width>16777215</width>
+                   <height>22</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Row 4 (4)</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string>text-align: left;</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="buzz_preset_bottom">
+                 <property name="maximumSize">
+                  <size>
+                   <width>16777215</width>
+                   <height>22</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Bottom (2)</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string>text-align: left;</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="buzz_preset_center">
+                 <property name="maximumSize">
+                  <size>
+                   <width>16777215</width>
+                   <height>22</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Center</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string>text-align: left;</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="buzz_preset_outer">
+                 <property name="maximumSize">
+                  <size>
+                   <width>16777215</width>
+                   <height>22</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Outer Ring</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string>text-align: left;</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="buzz_phantoms_group">
+              <property name="title">
+               <string>Phantoms</string>
+              </property>
+              <layout class="QHBoxLayout" name="buzz_phantoms_layout">
+               <item>
+                <widget class="QLabel" name="buzz_phantom_info">
+                 <property name="text">
+                  <string>0 phantoms</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string>font-size: 10px; color: #FFFFFF;</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="buzz_clear_phantoms_btn">
+                 <property name="maximumSize">
+                  <size>
+                   <width>16777215</width>
+                   <height>25</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Clear</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string>background-color: #555; border: 1px solid #777;</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <spacer name="buzz_spacer">
+              <property name="orientation">
+               <enum>Qt::Vertical</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>40</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </widget>
+          <widget class="QWidget" name="pulse_tab">
+           <attribute name="title">
+            <string>📳 Pulse</string>
+           </attribute>
+           <layout class="QVBoxLayout" name="pulse_layout">
+            <property name="spacing">
+             <number>3</number>
+            </property>
+            <item>
+             <widget class="QLabel" name="pulse_desc">
+              <property name="text">
+               <string>📳 PULSE - Rhythmic patterns</string>
+              </property>
+              <property name="styleSheet">
+               <string>font-weight: bold; font-size: 12px; color: #FF9800;</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="pulse_controls_group">
+              <property name="title">
+               <string>Controls</string>
+              </property>
+              <layout class="QFormLayout" name="pulse_controls_layout">
+               <property name="verticalSpacing">
+                <number>3</number>
+               </property>
+               <item row="0" column="0">
+                <widget class="QLabel" name="pulse_interval_label">
+                 <property name="text">
+                  <string>Interval:</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string>color: white; font-weight: bold;</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="0" column="1">
+                <widget class="QSpinBox" name="pulse_interval_spin">
+                 <property name="maximumSize">
+                  <size>
+                   <width>16777215</width>
+                   <height>25</height>
+                  </size>
+                 </property>
+                 <property name="suffix">
+                  <string> ms</string>
+                 </property>
+                 <property name="minimum">
+                  <number>50</number>
+                 </property>
+                 <property name="maximum">
+                  <number>1000</number>
+                 </property>
+                 <property name="value">
+                  <number>200</number>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="0">
+                <widget class="QLabel" name="pulse_selection_label">
+                 <property name="text">
+                  <string>Selection:</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string>color: white; font-weight: bold;</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="1">
+                <widget class="QLabel" name="pulse_selection_info">
+                 <property name="text">
+                  <string>No actuators selected</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string>font-weight: bold; font-size: 10px; color: #FFFFFF;</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <layout class="QHBoxLayout" name="pulse_buttons">
+              <item>
+               <widget class="QPushButton" name="pulse_clear_selection_btn">
+                <property name="maximumSize">
+                 <size>
+                  <width>16777215</width>
+                  <height>25</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>Clear</string>
+                </property>
+                <property name="styleSheet">
+                 <string>background-color: #555; border: 1px solid #777;</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="create_pulse_btn">
+                <property name="maximumSize">
+                 <size>
+                  <width>16777215</width>
+                  <height>25</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>📳 Pulse</string>
+                </property>
+                <property name="styleSheet">
+                 <string>background-color: #FF9800; border: 1px solid #F57C00;</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="pulse_presets_group">
+              <property name="title">
+               <string>Presets</string>
+              </property>
+              <layout class="QVBoxLayout" name="pulse_presets_layout">
+               <property name="spacing">
+                <number>2</number>
+               </property>
+               <item>
+                <widget class="QPushButton" name="pulse_preset_cable_wave">
+                 <property name="maximumSize">
+                  <size>
+                   <width>16777215</width>
+                   <height>22</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Cable Wave</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string>text-align: left;</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="pulse_preset_center_flow">
+                 <property name="maximumSize">
+                  <size>
+                   <width>16777215</width>
+                   <height>22</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Center Flow</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string>text-align: left;</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="pulse_preset_side_waves">
+                 <property name="maximumSize">
+                  <size>
+                   <width>16777215</width>
+                   <height>22</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Side Waves</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string>text-align: left;</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="pulse_preset_zigzag">
+                 <property name="maximumSize">
+                  <size>
+                   <width>16777215</width>
+                   <height>22</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Zigzag</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string>text-align: left;</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="pulse_preset_cross">
+                 <property name="maximumSize">
+                  <size>
+                   <width>16777215</width>
+                   <height>22</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Cross</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string>text-align: left;</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="pulse_phantoms_group">
+              <property name="title">
+               <string>Phantoms</string>
+              </property>
+              <layout class="QHBoxLayout" name="pulse_phantoms_layout">
+               <item>
+                <widget class="QLabel" name="pulse_phantom_info">
+                 <property name="text">
+                  <string>0 phantoms</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string>font-size: 10px; color: #FFFFFF;</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="pulse_clear_phantoms_btn">
+                 <property name="maximumSize">
+                  <size>
+                   <width>16777215</width>
+                   <height>25</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Clear</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string>background-color: #555; border: 1px solid #777;</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <spacer name="pulse_spacer">
+              <property name="orientation">
+               <enum>Qt::Vertical</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>40</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </widget>
+          <widget class="QWidget" name="motion_tab">
+           <attribute name="title">
+            <string>🌊 Motion</string>
+           </attribute>
+           <layout class="QVBoxLayout" name="motion_layout">
+            <property name="spacing">
+             <number>3</number>
+            </property>
+            <item>
+             <widget class="QLabel" name="motion_desc">
+              <property name="text">
+               <string>🌊 MOTION - Multi-trajectory phantoms</string>
+              </property>
+              <property name="styleSheet">
+               <string>font-weight: bold; font-size: 12px; color: #4CAF50;</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="multi_trajectory_group">
+              <property name="title">
+               <string>Multi-Trajectory Drawing</string>
+              </property>
+              <layout class="QVBoxLayout" name="multi_trajectory_layout">
+               <property name="spacing">
+                <number>3</number>
+               </property>
+               <item>
+                <layout class="QHBoxLayout" name="phantom_spacing_layout">
+                 <item>
+                  <widget class="QLabel" name="phantom_spacing_label">
+                   <property name="text">
+                    <string>Phantom spacing:</string>
+                   </property>
+                   <property name="styleSheet">
+                    <string>color: white; font-weight: bold; font-size: 10px;</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QSpinBox" name="phantom_spacing_spin">
+                   <property name="maximumSize">
+                    <size>
+                     <width>16777215</width>
+                     <height>25</height>
+                    </size>
+                   </property>
+                   <property name="suffix">
+                    <string> ms</string>
+                   </property>
+                   <property name="minimum">
+                    <number>50</number>
+                   </property>
+                   <property name="maximum">
+                    <number>500</number>
+                   </property>
+                   <property name="value">
+                    <number>100</number>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </item>
+               <item>
+                <widget class="QLabel" name="trajectory_info">
+                 <property name="text">
+                  <string>0 trajectories</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string>font-size: 10px; color: #FFFFFF;</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <layout class="QHBoxLayout" name="multi_buttons_1">
+                 <item>
+                  <widget class="QPushButton" name="start_drawing_btn">
+                   <property name="maximumSize">
+                    <size>
+                     <width>16777215</width>
+                     <height>25</height>
+                    </size>
+                   </property>
+                   <property name="text">
+                    <string>🎨 Draw</string>
+                   </property>
+                   <property name="styleSheet">
+                    <string>background-color: #2196F3; border: 1px solid #1976D2;</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QPushButton" name="new_trajectory_btn">
+                   <property name="maximumSize">
+                    <size>
+                     <width>16777215</width>
+                     <height>25</height>
+                    </size>
+                   </property>
+                   <property name="text">
+                    <string>➕ New</string>
+                   </property>
+                   <property name="styleSheet">
+                    <string>background-color: #4CAF50; border: 1px solid #388E3C;</string>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </item>
+               <item>
+                <layout class="QHBoxLayout" name="multi_buttons_2">
+                 <item>
+                  <widget class="QPushButton" name="play_all_btn">
+                   <property name="maximumSize">
+                    <size>
+                     <width>16777215</width>
+                     <height>25</height>
+                    </size>
+                   </property>
+                   <property name="text">
+                    <string>▶️ Play All</string>
+                   </property>
+                   <property name="styleSheet">
+                    <string>background-color: #FF9800; border: 1px solid #F57C00;</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QPushButton" name="clear_all_btn">
+                   <property name="maximumSize">
+                    <size>
+                     <width>16777215</width>
+                     <height>25</height>
+                    </size>
+                   </property>
+                   <property name="text">
+                    <string>🗑️ Clear All</string>
+                   </property>
+                   <property name="styleSheet">
+                    <string>background-color: #F44336; border: 1px solid #D32F2F;</string>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="drawing_state_group">
+              <property name="title">
+               <string>Drawing State</string>
+              </property>
+              <layout class="QVBoxLayout" name="drawing_state_layout">
+               <property name="spacing">
+                <number>3</number>
+               </property>
+               <item>
+                <widget class="QLabel" name="drawing_info">
+                 <property name="text">
+                  <string>Ready to draw</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string>font-size: 10px; color: #FFFFFF;</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <layout class="QHBoxLayout" name="current_trajectory_buttons">
+                 <item>
+                  <widget class="QPushButton" name="clear_current_btn">
+                   <property name="maximumSize">
+                    <size>
+                     <width>16777215</width>
+                     <height>25</height>
+                    </size>
+                   </property>
+                   <property name="text">
+                    <string>Clear Current</string>
+                   </property>
+                   <property name="styleSheet">
+                    <string>background-color: #555; border: 1px solid #777;</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QPushButton" name="play_current_btn">
+                   <property name="maximumSize">
+                    <size>
+                     <width>16777215</width>
+                     <height>25</height>
+                    </size>
+                   </property>
+                   <property name="text">
+                    <string>▶️ Current</string>
+                   </property>
+                   <property name="styleSheet">
+                    <string>background-color: #555; border: 1px solid #777;</string>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="sequential_group">
+              <property name="title">
+               <string>Sequential</string>
+              </property>
+              <layout class="QVBoxLayout" name="sequential_layout">
+               <property name="spacing">
+                <number>3</number>
+               </property>
+               <item>
+                <widget class="QLabel" name="motion_selection_info">
+                 <property name="text">
+                  <string>No actuators selected</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string>font-weight: bold; font-size: 10px; color: #FFFFFF;</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <layout class="QHBoxLayout" name="sequential_buttons">
+                 <item>
+                  <widget class="QPushButton" name="motion_clear_selection_btn">
+                   <property name="maximumSize">
+                    <size>
+                     <width>16777215</width>
+                     <height>25</height>
+                    </size>
+                   </property>
+                   <property name="text">
+                    <string>Clear</string>
+                   </property>
+                   <property name="styleSheet">
+                    <string>background-color: #555; border: 1px solid #777;</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QPushButton" name="create_sequence_btn">
+                   <property name="maximumSize">
+                    <size>
+                     <width>16777215</width>
+                     <height>25</height>
+                    </size>
+                   </property>
+                   <property name="text">
+                    <string>⚡ Sequence</string>
+                   </property>
+                   <property name="styleSheet">
+                    <string>background-color: #555; border: 1px solid #777;</string>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="motion_phantoms_group">
+              <property name="title">
+               <string>Phantoms</string>
+              </property>
+              <layout class="QHBoxLayout" name="motion_phantoms_layout">
+               <item>
+                <widget class="QLabel" name="motion_phantom_info">
+                 <property name="text">
+                  <string>0 phantoms</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string>font-size: 10px; color: #FFFFFF;</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="motion_clear_phantoms_btn">
+                 <property name="maximumSize">
+                  <size>
+                   <width>16777215</width>
+                   <height>25</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Clear</string>
+                 </property>
+                 <property name="styleSheet">
+                  <string>background-color: #555; border: 1px solid #777;</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <spacer name="motion_spacer">
+              <property name="orientation">
+               <enum>Qt::Vertical</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>40</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </widget>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="stop_btn">
+          <property name="text">
+           <string>🛑 EMERGENCY STOP</string>
+          </property>
+          <property name="styleSheet">
+           <string>background-color: #F44336; color: white; padding: 8px; font-weight: bold; font-size: 12px; border-radius: 4px;</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+    <item>
+     <widget class="QWidget" name="right_panel">
+      <property name="minimumSize">
+       <size>
+        <width>600</width>
+        <height>0</height>
+       </size>
+      </property>
+      <layout class="QVBoxLayout" name="right_layout">
+       <property name="spacing">
+        <number>5</number>
+       </property>
+       <property name="leftMargin">
+        <number>5</number>
+       </property>
+       <property name="topMargin">
+        <number>5</number>
+       </property>
+       <property name="rightMargin">
+        <number>5</number>
+       </property>
+       <property name="bottomMargin">
+        <number>5</number>
+       </property>
+       <item>
+        <widget class="QWidget" name="visualization_widget">
+         <property name="minimumSize">
+          <size>
+           <width>580</width>
+           <height>500</height>
+          </size>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QTextEdit" name="info_text">
+         <property name="maximumSize">
+          <size>
+           <width>16777215</width>
+           <height>60</height>
+          </size>
+         </property>
+         <property name="readOnly">
+          <bool>true</bool>
+         </property>
+         <property name="plainText">
+          <string>🎯 Boss's Layout Ready! • Buzz: Static • Pulse: Rhythmic • Motion: Smooth phantoms</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

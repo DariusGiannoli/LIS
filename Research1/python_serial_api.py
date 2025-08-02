@@ -34,8 +34,8 @@ class python_serial_api:
             await asyncio.sleep(0.001)
 
     def create_command(self, addr, duty, freq, start_or_stop):
-        serial_group = addr // 4
-        serial_addr = addr % 4
+        serial_group = addr // 16
+        serial_addr = addr % 16
         byte1 = (serial_group << 2) | (start_or_stop & 0x01)
         byte2 = 0x40 | (serial_addr & 0x3F)  # 0x40 represents the leading '01'
         byte3 = 0x80 | ((duty & 0x0F) << 3) | (freq & 0x07)  # 0x80 represents the leading '1'

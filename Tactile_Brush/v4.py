@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Enhanced Interactive Tactile Pattern Creator v3.1 with Custom Layout
+Enhanced Interactive Tactile Pattern Creator v3.3 with High-Density Phantom Creation
 Modified to match the specific actuator layout from the provided image
 
 Features:
@@ -9,8 +9,11 @@ Features:
 - Multiple waveform types (Sine, Square, Saw, Triangle, Chirp, FM, PWM, Noise)
 - Pattern recording and saving to folder
 - 3-actuator phantom sensations for arbitrary 2D positioning
-- Trajectory drawing with automatic phantom creation
-- Non-overlapping SOA constraints (duration ≤ 70ms)
+- RIGHT-CLICK phantom creation
+- DELETE ALL phantoms button
+- HIGH-DENSITY trajectory drawing with user-controlled phantom density
+- Intensity selector controls phantom intensity
+- Non-overlapping SOA constraints
 - Save/load custom layouts
 """
 import sys
@@ -87,14 +90,14 @@ CUSTOM_LAYOUT_POSITIONS = {
     15: (100, 240)
 }
 
-# Park et al. (2016) parameters
+# Updated Park et al. (2016) parameters for high-density phantoms
 PAPER_PARAMS = {
     'SOA_SLOPE': 0.32,
     'SOA_BASE': 47.3,  # in ms (converted from 0.0473s)
     'MIN_DURATION': 40,
-    'MAX_DURATION': 5000,  # Maximum 70ms to prevent overlapping
+    'MAX_DURATION': 200,  # Reduced for faster phantom sequences
     'OPTIMAL_FREQ': 250,  # 250Hz optimal frequency
-    'SAMPLING_RATE': 5000,  # Maximum sampling rate 70ms
+    'SAMPLING_RATE': 200,  # Increased sampling rate for denser phantoms
 }
 
 # Waveform types available
@@ -252,7 +255,7 @@ class Enhanced3ActuatorPhantom:
     waveform_type: str = "Sine"
 
 class EnhancedTactileEngine:
-    """Enhanced engine with custom layout, phantoms, and waveforms"""
+    """Enhanced engine with custom layout, phantoms, and high-density trajectory support"""
     
     def __init__(self, api=None):
         self.api = api
@@ -278,11 +281,12 @@ class EnhancedTactileEngine:
         self.enhanced_phantoms = []
         self.actuator_triangles = []
         
-        # Trajectory state
+        # Trajectory state with high-density support
         self.current_trajectory = []
         self.trajectory_phantoms = []
         self.trajectory_mode = False
         self.trajectory_sampling_rate = 70
+        self.max_phantoms_per_trajectory = 30  # Increased default
         
         # Pattern recording state
         self.is_recording = False
@@ -411,7 +415,7 @@ class EnhancedTactileEngine:
         print(f"🎵 Waveform frequency set to: {self.waveform_frequency}Hz")
     
     def compute_actuator_triangles(self):
-        """Systematic triangulation for smooth phantom motion"""
+        """Systematic triangulation for smooth phantom motion with improved coverage"""
         self.actuator_triangles = []
         positions = self.actuator_positions
         
@@ -434,8 +438,8 @@ class EnhancedTactileEngine:
                               pos2[0]*(pos3[1]-pos1[1]) + 
                               pos3[0]*(pos1[1]-pos2[1]))/2)
                     
-                    # Only include triangles with reasonable area
-                    if area > 50 and area < 8000:
+                    # Allow smaller triangles for better phantom coverage
+                    if area > 25 and area < 8000:  # Reduced minimum area from 50 to 25
                         triangle = {
                             'actuators': [act1, act2, act3],
                             'positions': [pos1, pos2, pos3],
@@ -451,8 +455,8 @@ class EnhancedTactileEngine:
         # Sort by quality (smoothness and area)
         self.actuator_triangles.sort(key=lambda t: (t['smoothness_score'], t['area']))
         
-        # Keep only the best triangles to avoid overwhelming computation
-        max_triangles = min(50, len(self.actuator_triangles))
+        # Keep more triangles for better phantom coverage
+        max_triangles = min(75, len(self.actuator_triangles))  # Increased from 50 to 75
         self.actuator_triangles = self.actuator_triangles[:max_triangles]
         
         print(f"🔺 Generated {len(self.actuator_triangles)} optimized triangles")
@@ -569,49 +573,15 @@ class EnhancedTactileEngine:
         
         self.enhanced_phantoms.append(phantom)
         return phantom
-    def execute_enhanced_phantom(self, phantom: Enhanced3ActuatorPhantom):
-        """Execute an enhanced phantom with proper waveform generation"""
-        if not self.api or not self.api.connected:
-            print(f"🔮 Simulating phantom at ({phantom.virtual_position[0]:.1f}, {phantom.virtual_position[1]:.1f})")
-            return
-        
-        # Generate waveform for the phantom
-        waveform_data = generate_waveform(
-            phantom.waveform_type, 
-            self.waveform_frequency, 
-            self.pattern_duration / 1000.0,  # Convert ms to seconds
-            PAPER_PARAMS['SAMPLING_RATE']
-        )
-        
-        # Send waveform to each actuator with calculated intensities
-        freq = 4  # Standard frequency for device communication
-        duration_setting = 1  # Standard duration setting
-        
-        success1 = self.api.send_command(
-            phantom.physical_actuator_1, 
-            phantom.required_intensity_1, 
-            freq, 
-            duration_setting
-        )
-        success2 = self.api.send_command(
-            phantom.physical_actuator_2, 
-            phantom.required_intensity_2, 
-            freq, 
-            duration_setting
-        )
-        success3 = self.api.send_command(
-            phantom.physical_actuator_3, 
-            phantom.required_intensity_3, 
-            freq, 
-            duration_setting
-        )
-        
-        if success1 and success2 and success3:
-            phantom.timestamp = time.time() * 1000
-            print(f"✅ Enhanced phantom executed at ({phantom.virtual_position[0]:.1f}, {phantom.virtual_position[1]:.1f})")
-            print(f"   Actuators: {phantom.physical_actuator_1}({phantom.required_intensity_1}), {phantom.physical_actuator_2}({phantom.required_intensity_2}), {phantom.physical_actuator_3}({phantom.required_intensity_3})")
-        else:
-            print(f"❌ Failed to execute phantom")
+    
+    def delete_all_phantoms(self):
+        """Delete all phantoms"""
+        phantom_count = len(self.enhanced_phantoms)
+        self.enhanced_phantoms = []
+        self.trajectory_phantoms = []
+        print(f"🗑️ Deleted {phantom_count} phantoms")
+        return phantom_count
+    
     def calculate_enhanced_soa(self, duration_ms: float) -> float:
         """Enhanced SOA calculation with non-overlapping constraint"""
         soa = PAPER_PARAMS['SOA_SLOPE'] * duration_ms + PAPER_PARAMS['SOA_BASE']
@@ -735,7 +705,7 @@ class EnhancedTactileEngine:
         self.execute_soa_sequence(soa_steps)
         print(f"▶️ Playing pattern: {pattern.name} ({len(pattern.steps)} steps)")
     
-    # Trajectory methods
+    # Enhanced Trajectory methods with high-density support
     def start_trajectory_mode(self):
         """Enable trajectory drawing mode"""
         self.trajectory_mode = True
@@ -778,25 +748,31 @@ class EnhancedTactileEngine:
     
     def sample_trajectory_points(self, trajectory: List[Tuple[float, float]], 
                                sampling_rate_ms: float) -> List[Dict]:
-        """Sample points along trajectory respecting Park et al. constraints"""
+        """Sample points along trajectory with user-controlled phantom density"""
         if len(trajectory) < 2:
             return []
         
         samples = []
         total_length = self.calculate_trajectory_length(trajectory)
-        soa = self.calculate_enhanced_soa(self.pattern_duration)
-        actual_sampling_rate = min(sampling_rate_ms, soa)
         
-        min_spacing = 30
-        max_samples = max(2, int(total_length / min_spacing))
-        time_based_samples = max(2, int(total_length / 50))
+        # Use user-defined phantom density instead of restrictive calculations
+        max_phantoms = self.max_phantoms_per_trajectory
         
-        num_samples = min(max_samples, time_based_samples)
+        # Calculate optimal number of samples based on trajectory length and user preference
+        if total_length > 0:
+            # Adaptive density: more phantoms for longer trajectories
+            density_factor = min(total_length / 100.0, 2.0)  # Scale factor
+            num_samples = min(max_phantoms, max(3, int(max_phantoms * density_factor)))
+        else:
+            num_samples = 3
         
+        # Generate evenly spaced samples along trajectory
         for i in range(num_samples):
-            t = i / (num_samples - 1)
+            t = i / (num_samples - 1) if num_samples > 1 else 0
             point = self.interpolate_trajectory(trajectory, t)
-            timestamp = i * actual_sampling_rate
+            
+            # Use smaller time intervals for faster phantom sequences
+            timestamp = i * max(20, sampling_rate_ms // 3)  # Faster phantom activation
             
             samples.append({
                 'position': point,
@@ -806,6 +782,11 @@ class EnhancedTactileEngine:
             })
         
         return samples
+    
+    def set_max_phantoms_per_trajectory(self, max_phantoms: int):
+        """Set maximum number of phantoms per trajectory"""
+        self.max_phantoms_per_trajectory = max(3, min(100, max_phantoms))
+        print(f"🔺 Max phantoms per trajectory set to: {self.max_phantoms_per_trajectory}")
     
     def calculate_trajectory_length(self, points: List[Tuple[float, float]]) -> float:
         """Calculate total length of trajectory"""
@@ -889,10 +870,8 @@ class EnhancedTactileEngine:
         self.trajectory_phantoms = []
     
     def set_trajectory_sampling_rate(self, rate_ms: int):
-        """Set trajectory sampling rate with SOA constraint"""
-        soa = self.calculate_enhanced_soa(self.pattern_duration)
-        actual_rate = min(rate_ms, soa)
-        self.trajectory_sampling_rate = actual_rate
+        """Set trajectory sampling rate"""
+        self.trajectory_sampling_rate = max(10, min(500, rate_ms))
     
     # Mouse interaction methods
     def on_mouse_hover(self, target_id: int, is_phantom: bool = False):
@@ -1029,13 +1008,14 @@ class EnhancedTactileEngine:
         self.trajectory_phantoms = []
 
 class EnhancedTactileVisualization(QWidget):
-    """Enhanced visualization with drag-and-drop layout editing"""
+    """Enhanced visualization with drag-and-drop layout editing and right-click phantom creation"""
     
     actuator_hovered = pyqtSignal(int)
     phantom_hovered = pyqtSignal(int)
     mouse_left = pyqtSignal()
     trajectory_drawn = pyqtSignal()
     actuator_moved = pyqtSignal(int, float, float)
+    phantom_created = pyqtSignal(float, float)
     
     def __init__(self):
         super().__init__()
@@ -1081,6 +1061,14 @@ class EnhancedTactileVisualization(QWidget):
             return
         
         mouse_pos = event.position()
+        
+        # Right-click phantom creation (only when not in layout editor or trajectory mode)
+        if (event.button() == Qt.MouseButton.RightButton and 
+            not self.layout_editor_mode and not self.engine.trajectory_mode):
+            physical_pos = self.screen_to_physical(mouse_pos)
+            if physical_pos:
+                self.phantom_created.emit(physical_pos[0], physical_pos[1])
+                return
         
         # Layout editor mode - actuator dragging
         if self.layout_editor_mode and event.button() == Qt.MouseButton.LeftButton:
@@ -1288,13 +1276,13 @@ class EnhancedTactileVisualization(QWidget):
         font.setPointSize(10)
         painter.setFont(font)
         
-        title_text = f"🎨 Custom Layout Tactile v3.1 - {self.engine.current_layout_name}"
+        title_text = f"🎨 High-Density Tactile v3.3 - {self.engine.current_layout_name}"
         if self.layout_editor_mode:
             title_text += " [LAYOUT EDITOR]"
         painter.drawText(margin, 20, title_text)
         
         # Spacing info
-        spacing_text = "📏 5cm horizontal, 6cm vertical spacing"
+        spacing_text = "📏 5cm horizontal, 6cm vertical spacing | Right-click to create phantoms"
         painter.setPen(QPen(QColor(100, 100, 100)))
         font.setPointSize(8)
         font.setBold(False)
@@ -1306,7 +1294,7 @@ class EnhancedTactileVisualization(QWidget):
         if self.engine.is_recording:
             status_text += f"🔴 REC ({len(self.engine.current_pattern_steps)} steps) "
         if self.engine.trajectory_mode:
-            status_text += "🎨 TRAJECTORY MODE "
+            status_text += f"🎨 TRAJECTORY MODE (Max: {self.engine.max_phantoms_per_trajectory}) "
         if self.layout_editor_mode:
             status_text += "✏️ LAYOUT EDITOR "
         
@@ -1315,7 +1303,7 @@ class EnhancedTactileVisualization(QWidget):
             font.setBold(True)
             font.setPointSize(9)
             painter.setFont(font)
-            painter.drawText(self.width() - 400, 20, status_text)
+            painter.drawText(self.width() - 500, 20, status_text)
         
         # Draw trajectory if being drawn or completed
         if self.engine and self.engine.current_trajectory:
@@ -1347,7 +1335,7 @@ class EnhancedTactileVisualization(QWidget):
         
         # Draw triangles if enabled
         if self.show_triangles and hasattr(self.engine, 'actuator_triangles'):
-            for triangle in self.engine.actuator_triangles[:10]:  # Show only best triangles
+            for triangle in self.engine.actuator_triangles[:15]:  # Show only best triangles
                 screen_positions = [pos_to_screen(pos) for pos in triangle['positions']]
                 points = [QPointF(pos[0], pos[1]) for pos in screen_positions]
                 
@@ -1487,7 +1475,15 @@ class EnhancedTactileVisualization(QWidget):
             painter.setPen(QPen(QColor(0, 100, 255)))
             font.setBold(True)
             painter.setFont(font)
-            painter.drawText(margin, legend_y - 35, "🎨 TRAJECTORY MODE - Draw path to create phantoms")
+            painter.drawText(margin, legend_y - 35, f"🎨 HIGH-DENSITY TRAJECTORY MODE - Draw paths (Max: {self.engine.max_phantoms_per_trajectory} phantoms)")
+            font.setBold(False)
+            painter.setFont(font)
+            painter.setPen(QPen(QColor(0, 0, 0)))
+        else:
+            painter.setPen(QPen(QColor(0, 100, 255)))
+            font.setBold(True)
+            painter.setFont(font)
+            painter.drawText(margin, legend_y - 35, "👆 RIGHT-CLICK anywhere to create phantoms")
             font.setBold(False)
             painter.setFont(font)
             painter.setPen(QPen(QColor(0, 0, 0)))
@@ -1495,7 +1491,7 @@ class EnhancedTactileVisualization(QWidget):
         painter.drawText(margin, legend_y, "🔴 Vibrating  🟠 Hovered  🟣 Phantom  ⚫ Inactive")
 
 class EnhancedTactileGUI(QWidget):
-    """Enhanced GUI with custom layout and waveform selection"""
+    """Enhanced GUI with custom layout, waveform selection, right-click phantom creation, and high-density trajectory support"""
     
     def __init__(self):
         super().__init__()
@@ -1525,6 +1521,7 @@ class EnhancedTactileGUI(QWidget):
         self.viz.mouse_left.connect(self.engine.on_mouse_leave)
         self.viz.trajectory_drawn.connect(self.on_trajectory_completed)
         self.viz.actuator_moved.connect(self.on_actuator_moved)
+        self.viz.phantom_created.connect(self.on_phantom_created)
     
     def setup_ui(self):
         # Use a splitter for better space management
@@ -1537,11 +1534,11 @@ class EnhancedTactileGUI(QWidget):
         left_layout = QVBoxLayout(left_panel)
         
         # Title
-        title = QLabel("🎨 Custom Layout Tactile Creator")
+        title = QLabel("🎨 High-Density Tactile Creator")
         title.setStyleSheet("font-weight: bold; font-size: 14px; color: #2E86AB;")
         left_layout.addWidget(title)
         
-        subtitle = QLabel("Custom Layout • 5cm×6cm spacing • Waveforms • Recording")
+        subtitle = QLabel("Custom Layout • 5cm×6cm spacing • High-Density Trajectories • Right-click phantoms")
         subtitle.setStyleSheet("font-style: italic; color: #666; font-size: 10px;")
         left_layout.addWidget(subtitle)
         
@@ -1727,16 +1724,24 @@ class EnhancedTactileGUI(QWidget):
         
         scroll_layout.addWidget(library_group)
         
-        # Trajectory Creation
-        trajectory_group = QGroupBox("🎨 Trajectory Creation")
+        # High-Density Trajectory Creation
+        trajectory_group = QGroupBox("🎨 High-Density Trajectory Creation")
         trajectory_layout = QFormLayout(trajectory_group)
         
+        # Phantom density control
+        self.phantom_density_spin = QSpinBox()
+        self.phantom_density_spin.setRange(5, 100)
+        self.phantom_density_spin.setValue(30)  # Increased default
+        self.phantom_density_spin.setSuffix(" phantoms")
+        self.phantom_density_spin.valueChanged.connect(self.update_phantom_density)
+        trajectory_layout.addRow("Max Phantoms:", self.phantom_density_spin)
+        
         self.trajectory_sampling_spin = QSpinBox()
-        self.trajectory_sampling_spin.setRange(5, 1000)
-        self.trajectory_sampling_spin.setValue(70)
+        self.trajectory_sampling_spin.setRange(10, 200)
+        self.trajectory_sampling_spin.setValue(50)
         self.trajectory_sampling_spin.setSuffix(" ms")
         self.trajectory_sampling_spin.valueChanged.connect(self.update_trajectory_sampling)
-        trajectory_layout.addRow("Sampling:", self.trajectory_sampling_spin)
+        trajectory_layout.addRow("Sampling Rate:", self.trajectory_sampling_spin)
         
         trajectory_btn_layout = QVBoxLayout()
         
@@ -1761,8 +1766,13 @@ class EnhancedTactileGUI(QWidget):
         scroll_layout.addWidget(trajectory_group)
         
         # Manual Phantom Creation
-        phantom_group = QGroupBox("Manual Phantom")
+        phantom_group = QGroupBox("👻 Phantom Creation")
         phantom_layout = QFormLayout(phantom_group)
+        
+        # Phantom creation info
+        info_label = QLabel("Right-click grid to create phantoms")
+        info_label.setStyleSheet("color: #666; font-style: italic; font-size: 10px;")
+        phantom_layout.addRow("", info_label)
         
         phantom_pos_layout = QHBoxLayout()
         self.phantom_x_spin = QSpinBox()
@@ -1783,12 +1793,29 @@ class EnhancedTactileGUI(QWidget):
         
         self.phantom_intensity_spin = QSpinBox()
         self.phantom_intensity_spin.setRange(1, 15)
-        self.phantom_intensity_spin.setValue(13)
+        self.phantom_intensity_spin.setValue(8)  # Default to pattern intensity
         phantom_layout.addRow("Intensity:", self.phantom_intensity_spin)
+        
+        phantom_btn_layout = QHBoxLayout()
         
         self.create_phantom_btn = QPushButton("🔺 Create Phantom")
         self.create_phantom_btn.clicked.connect(self.create_enhanced_phantom)
-        phantom_layout.addRow("", self.create_phantom_btn)
+        
+        self.delete_all_phantoms_btn = QPushButton("🗑️ Delete All")
+        self.delete_all_phantoms_btn.clicked.connect(self.delete_all_phantoms)
+        self.delete_all_phantoms_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FF5722;
+                color: white;
+                padding: 6px;
+                font-weight: bold;
+                border-radius: 4px;
+            }
+        """)
+        
+        phantom_btn_layout.addWidget(self.create_phantom_btn)
+        phantom_btn_layout.addWidget(self.delete_all_phantoms_btn)
+        phantom_layout.addRow("", phantom_btn_layout)
         
         scroll_layout.addWidget(phantom_group)
         
@@ -1814,7 +1841,7 @@ class EnhancedTactileGUI(QWidget):
         self.info_text = QTextEdit()
         self.info_text.setMaximumHeight(60)
         self.info_text.setReadOnly(True)
-        self.info_text.setPlainText("🎨 Custom layout tactile system ready! Layout matches image with 5cm×6cm spacing. Edit layout, choose waveforms, record patterns.")
+        self.info_text.setPlainText("🎨 High-density tactile system ready! Draw trajectories with up to 100 phantoms. Right-click to create phantoms!")
         viz_layout.addWidget(self.info_text)
         
         # Add panels to splitter
@@ -1827,6 +1854,44 @@ class EnhancedTactileGUI(QWidget):
         # Initialize
         self.update_pattern_parameters()
         self.update_layout_display()
+        self.sync_phantom_intensity()
+        self.update_phantom_density()
+    
+    def sync_phantom_intensity(self):
+        """Sync phantom intensity with pattern intensity"""
+        pattern_intensity = self.pattern_intensity_spin.value()
+        self.phantom_intensity_spin.setValue(pattern_intensity)
+    
+    def update_phantom_density(self):
+        """Update maximum phantoms per trajectory"""
+        max_phantoms = self.phantom_density_spin.value()
+        self.engine.set_max_phantoms_per_trajectory(max_phantoms)
+        self.info_text.setPlainText(f"🔺 Max phantoms per trajectory set to: {max_phantoms}")
+        self.viz.update()
+    
+    def on_phantom_created(self, x: float, y: float):
+        """Handle phantom creation from right-click"""
+        intensity = self.phantom_intensity_spin.value()
+        phantom = self.engine.create_enhanced_phantom((x, y), intensity)
+        
+        if phantom:
+            self.viz.update()
+            self.info_text.setPlainText(
+                f"✅ Phantom created at ({x:.1f}, {y:.1f}) with intensity {intensity}\n"
+                f"Actuators: [{phantom.physical_actuator_1}, {phantom.physical_actuator_2}, {phantom.physical_actuator_3}]"
+            )
+        else:
+            self.info_text.setPlainText(f"❌ Failed to create phantom at ({x:.1f}, {y:.1f}) - try closer to actuators")
+    
+    def delete_all_phantoms(self):
+        """Delete all phantoms"""
+        phantom_count = self.engine.delete_all_phantoms()
+        self.viz.update()
+        
+        if phantom_count > 0:
+            self.info_text.setPlainText(f"🗑️ Deleted {phantom_count} phantoms")
+        else:
+            self.info_text.setPlainText("ℹ️ No phantoms to delete")
     
     def on_waveform_changed(self, waveform_type: str):
         """Handle waveform type change"""
@@ -2081,6 +2146,10 @@ class EnhancedTactileGUI(QWidget):
         duration = self.pattern_duration_spin.value()
         intensity = self.pattern_intensity_spin.value()
         self.engine.set_pattern_parameters(duration, intensity)
+        
+        # Sync phantom intensity with pattern intensity
+        self.phantom_intensity_spin.setValue(intensity)
+        
         self.viz.update()
     
     def toggle_trajectory_mode(self):
@@ -2097,7 +2166,8 @@ class EnhancedTactileGUI(QWidget):
                     border-radius: 4px;
                 }
             """)
-            self.info_text.setPlainText("🎨 Trajectory mode enabled - click and drag to draw path")
+            max_phantoms = self.engine.max_phantoms_per_trajectory
+            self.info_text.setPlainText(f"🎨 High-density trajectory mode enabled - draw paths (Max: {max_phantoms} phantoms)")
         else:
             self.engine.stop_trajectory_mode()
             self.trajectory_mode_btn.setText("🎨 Start Drawing")
@@ -2123,12 +2193,12 @@ class EnhancedTactileGUI(QWidget):
             self.play_trajectory_btn.setEnabled(True)
             self.viz.update()
             
-            soa = self.engine.calculate_enhanced_soa(self.engine.pattern_duration)
-            total_time = phantom_count * soa
+            max_phantoms = self.engine.max_phantoms_per_trajectory
+            density = phantom_count / max(trajectory_length, 1) * 100  # Phantoms per 100mm
             
             self.info_text.setPlainText(
-                f"✅ Trajectory completed: {phantom_count} phantoms\n"
-                f"Length: {trajectory_length:.1f}mm, {self.engine.current_waveform_type} waveform"
+                f"✅ HIGH-DENSITY trajectory: {phantom_count} phantoms created\n"
+                f"Length: {trajectory_length:.1f}mm, Density: {density:.1f} phantoms/100mm"
             )
         else:
             self.info_text.setPlainText("❌ Failed to create phantoms - try drawing closer to actuators")
@@ -2142,9 +2212,11 @@ class EnhancedTactileGUI(QWidget):
         self.engine.play_trajectory_phantoms()
         phantom_count = len(self.engine.trajectory_phantoms)
         
+        estimated_duration = phantom_count * max(20, self.trajectory_sampling_spin.value() // 3)
+        
         self.info_text.setPlainText(
-            f"▶️ Playing trajectory: {phantom_count} phantoms\n"
-            f"Waveform: {self.engine.current_waveform_type} @ {self.engine.waveform_frequency}Hz"
+            f"▶️ Playing HIGH-DENSITY trajectory: {phantom_count} phantoms\n"
+            f"Duration: ~{estimated_duration/1000:.1f}s | Waveform: {self.engine.current_waveform_type}"
         )
     
     def clear_trajectory(self):
@@ -2176,7 +2248,7 @@ class EnhancedTactileGUI(QWidget):
         if phantom:
             self.viz.update()
             self.info_text.setPlainText(
-                f"✅ Phantom created at ({x}, {y})\n"
+                f"✅ Phantom created at ({x}, {y}) with intensity {intensity}\n"
                 f"Actuators: [{phantom.physical_actuator_1}, {phantom.physical_actuator_2}, {phantom.physical_actuator_3}]"
             )
         else:
@@ -2194,7 +2266,7 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     
     window = QMainWindow()
-    window.setWindowTitle("🎨 Custom Layout Tactile Pattern Creator - 5cm×6cm Spacing")
+    window.setWindowTitle("🎨 High-Density Tactile Pattern Creator v3.3 - 5cm×6cm Spacing")
     
     widget = EnhancedTactileGUI()
     window.setCentralWidget(widget)
