@@ -1,3 +1,4 @@
 - Serial: 
 - BLE: 
 - ESP-NOW: use Mac_Address_Utility.ino file to find the mac address of the slave boards and then replace it. python_serial_api.py file to communicate between computer and master board. 
+- ls /dev/cu.usbmodem*

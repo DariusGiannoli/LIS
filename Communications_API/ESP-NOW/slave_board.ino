@@ -1,16 +1,10 @@
 #include <esp_now.h>
 #include <WiFi.h>
-#include <Adafruit_NeoPixel.h>
 #include <SoftwareSerial.h>
 
-Adafruit_NeoPixel strip(1, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
-
-// Your existing actuator setup - EXACTLY from your original file
+// Your existing actuator setup
 const int subchain_pins[4] = {18, 17, 9, 8};
 const int subchain_num = 4;
-uint32_t colors[5];
-int color_num = 5;
-int global_counter = 0;
 
 EspSoftwareSerial::UART serial_group[4];
 
@@ -20,112 +14,89 @@ typedef struct struct_message {
   int length;
 } struct_message;
 
-struct_message incomingData;
-
-// Callback when data is received via ESP-NOW (updated for newer ESP32 core)
-void OnDataRecv(const esp_now_recv_info *recv_info, const uint8_t *incomingData, int len) {
+// Callback when data is received - same signature as your working version
+void OnDataRecv(const esp_now_recv_info* recv_info, const uint8_t *incomingData, int len) {
   struct_message* receivedData = (struct_message*)incomingData;
   
-  Serial.print("ESP-NOW: Received ");
+  Serial.print("Received ");
   Serial.print(receivedData->length);
-  Serial.println(" bytes");
+  Serial.println(" bytes from master");
   
-  // Visual feedback - flash blue
-  strip.setPixelColor(0, strip.Color(0, 0, 255));
-  strip.show();
-  
-  unsigned long t1 = micros();
-  
-  // Process the received data using YOUR EXISTING function
+  // Process the received data
   processSerialData(receivedData->data, receivedData->length);
-  
-  unsigned long t2 = micros();
-  
-  Serial.print("Processed ESP-NOW data in: ");
-  Serial.print(t2 - t1);
-  Serial.println("us");
-  
-  // Return to green (ready state)
-  strip.setPixelColor(0, strip.Color(0, 255, 0));
-  strip.show();
 }
 
 void setup() {
-  Serial.begin(115200); // USB Serial for debugging
+  Serial.begin(115200);
+  delay(1000);
   
-  Serial.print("Number of hardware serial available: ");
-  Serial.println(SOC_UART_NUM);
+  Serial.println("=== ESP-NOW Actuator Slave ===");
   
-  // Initialize UART connections for actuator chains - YOUR EXISTING CODE
+  // Initialize UART connections for actuator chains
+  Serial.println("Initializing actuator UART connections...");
   for (int i = 0; i < subchain_num; ++i) {
-    Serial.print("Initialize UART on pin ");
+    Serial.print("UART on pin ");
     Serial.println(subchain_pins[i]);
     serial_group[i].begin(115200, SWSERIAL_8E1, -1, subchain_pins[i], false);
     serial_group[i].enableIntTx(false);
     if (!serial_group[i]) {
-      Serial.println("Invalid EspSoftwareSerial pin configuration, check config");
+      Serial.println("ERROR: Invalid pin configuration!");
+    } else {
+      Serial.println("UART initialized successfully");
     }
     delay(200);
   }
   
-  Serial.println("Starting ESP-NOW communication!");
-
-  // Setup LED - YOUR EXISTING CODE
+  // Setup pins
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);
   pinMode(2, OUTPUT);
   digitalWrite(2, HIGH);
-  strip.begin();
-  strip.setBrightness(20);
-  colors[0] = strip.Color(0, 255, 0);
   
-  // Set as orange during setup
-  strip.setPixelColor(0, strip.Color(255, 165, 0));
-  strip.show();
-  
-  // Set device as a Wi-Fi Station
   WiFi.mode(WIFI_STA);
   
-  // Print MAC address (you used this for the master)
-  Serial.print("Slave MAC Address: ");
-  Serial.println(WiFi.macAddress());
+  // Show MAC address - same format as your working version
+  Serial.println("Slave MAC Address:");
+  Serial.print("uint8_t slaveAddress[] = {");
+  String mac = WiFi.macAddress();
+  mac.replace(":", ", 0x");
+  Serial.print("0x" + mac);
+  Serial.println("};");
+  Serial.println();
   
-  // Init ESP-NOW
   if (esp_now_init() != ESP_OK) {
-    Serial.println("Error initializing ESP-NOW");
-    strip.setPixelColor(0, strip.Color(255, 0, 0)); // Red for error
-    strip.show();
+    Serial.println("ESP-NOW init failed!");
     return;
   }
   
-  // Register receive callback
   esp_now_register_recv_cb(OnDataRecv);
   
-  Serial.println("ESP-NOW Slave initialized successfully!");
-  Serial.println("Ready to receive commands via ESP-NOW and control actuators!");
-  
-  // Green for ready
-  strip.setPixelColor(0, colors[0]);
-  strip.show();
+  Serial.println("Ready to receive actuator commands!");
 }
 
 void loop() {
-  // The main work is done in the ESP-NOW callback function
-  // Just keep the loop running with a small delay
-  delay(1);
+  // Everything happens in the callback
+  delay(100);
 }
 
-// YOUR EXISTING processSerialData function - EXACTLY the same
+// Process the received actuator command data
 void processSerialData(uint8_t* data, int length) {
-  if (length % 3 == 0) {  // Ensure the length is a multiple of 3 bytes
-    unsigned long timestamp = millis(); // Get current time in milliseconds
-
+  Serial.print("Processing ");
+  Serial.print(length);
+  Serial.print(" bytes: ");
+  
+  if (length % 3 == 0) {
+    Serial.println("Valid packet");
+    
+    int commandCount = 0;
     for (int i = 0; i < length; i += 3) {
       uint8_t byte1 = data[i];
       uint8_t byte2 = data[i+1];
       uint8_t byte3 = data[i+2];
 
-      if (byte1 == 0xFF) continue; // Skip if the first byte of the command is 0xFF
+      if (byte1 == 0xFF) {
+        continue; // Skip padding
+      }
 
       int serial_group_number = (byte1 >> 2) & 0x0F;
       int is_start = byte1 & 0x01;
@@ -134,46 +105,42 @@ void processSerialData(uint8_t* data, int length) {
       int freq = (byte3 >> 1) & 0x03;
       int wave = byte3 & 0x01;
 
+      Serial.printf("Command %d: Group=%d, Addr=%d, Start=%d, Duty=%d, Freq=%d, Wave=%d\n", 
+                    commandCount++, serial_group_number, addr, is_start, duty, freq, wave);
+      
       sendCommand(serial_group_number, addr, is_start, duty, freq, wave);
     }
+    
+    Serial.print("Processed ");
+    Serial.print(commandCount);
+    Serial.println(" commands");
   }
   else {
-    unsigned long timestamp = millis(); // Get current time in milliseconds
-    Serial.println("ERROR: Invalid data length");
+    Serial.print("ERROR: Invalid packet length: ");
+    Serial.println(length);
   }
 }
 
-// YOUR EXISTING sendCommand function - EXACTLY the same
+// Send command to actuator
 void sendCommand(int serial_group_number, int motor_addr, int is_start, int duty, int freq, int wave) {
   if (serial_group_number >= subchain_num) {
-    Serial.print("ERROR: Invalid serial group number: ");
+    Serial.print("ERROR: Invalid serial group: ");
     Serial.println(serial_group_number);
     return;
   }
   
-  if (is_start == 1) { // Start command, two bytes
+  if (is_start == 1) { // Start command
     uint8_t message[2];
     message[0] = (motor_addr << 1) | is_start;
     message[1] = 0x80 | (duty << 3) | (freq << 1) | wave;
     serial_group[serial_group_number].write(message, 2);
     
-    Serial.print("Sent START command to group ");
-    Serial.print(serial_group_number);
-    Serial.print(", addr ");
-    Serial.print(motor_addr);
-    Serial.print(", duty ");
-    Serial.print(duty);
-    Serial.print(", freq ");
-    Serial.print(freq);
-    Serial.print(", wave ");
-    Serial.println(wave);
-  } else { // Stop command, only one byte
+    Serial.printf("START → Group %d, Addr %d, Duty %d, Freq %d, Wave %d\n", 
+                  serial_group_number, motor_addr, duty, freq, wave);
+  } else { // Stop command
     uint8_t message = (motor_addr << 1) | is_start;
     serial_group[serial_group_number].write(&message, 1);
     
-    Serial.print("Sent STOP command to group ");
-    Serial.print(serial_group_number);
-    Serial.print(", addr ");
-    Serial.println(motor_addr);
+    Serial.printf("STOP → Group %d, Addr %d\n", serial_group_number, motor_addr);
   }
 }

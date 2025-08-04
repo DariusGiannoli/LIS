@@ -1,132 +1,108 @@
 #include <esp_now.h>
 #include <WiFi.h>
-#include <Adafruit_NeoPixel.h>
 
-Adafruit_NeoPixel strip(1, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
+// MAC Address of your slave board - UPDATE THIS WITH YOUR SLAVE'S MAC!
+uint8_t slaveAddress[] = {0xCC, 0xBA, 0x97, 0x1D, 0x01, 0x74};
 
-// MAC Address of the slave board - REPLACE WITH YOUR SLAVE'S MAC ADDRESS
-uint8_t slaveAddress[] = {0xCC, 0xBA, 0x97, 0x1D, 0x01, 0x74}; // ← PUT YOUR SLAVE MAC HERE
-
-// Structure to send data
+// Structure to send data (60 bytes for actuator commands)
 typedef struct struct_message {
-  uint8_t data[60]; // Maximum packet size to match your current system
+  uint8_t data[60];
   int length;
 } struct_message;
 
 struct_message myData;
 
-// Callback when data is sent (updated for newer ESP32 core)
-void OnDataSent(const wifi_tx_info_t *tx_info, esp_now_send_status_t status) {
-  if (status == ESP_NOW_SEND_SUCCESS) {
-    Serial.println("ESP-NOW: Data sent successfully");
-    // Green LED for success
-    strip.setPixelColor(0, strip.Color(0, 255, 0));
-  } else {
-    Serial.println("ESP-NOW: Failed to send data");
-    // Red LED for failure
-    strip.setPixelColor(0, strip.Color(255, 0, 0));
-  }
-  strip.show();
-}
-
 void setup() {
   Serial.begin(115200);
+  delay(1000);
   
-  // Initialize NeoPixel
-  strip.begin();
-  strip.setBrightness(20);
-  strip.setPixelColor(0, strip.Color(0, 0, 255)); // Blue during setup
-  strip.show();
-  
-  // Set device as a Wi-Fi Station
-  WiFi.mode(WIFI_STA);
-  
-  // Print MAC address
-  Serial.print("Master MAC Address: ");
+  Serial.println("=== ESP-NOW Actuator Master ===");
+  Serial.print("Master MAC: ");
   Serial.println(WiFi.macAddress());
   
-  // Init ESP-NOW
+  WiFi.mode(WIFI_STA);
+  
   if (esp_now_init() != ESP_OK) {
-    Serial.println("Error initializing ESP-NOW");
-    strip.setPixelColor(0, strip.Color(255, 0, 0)); // Red for error
-    strip.show();
+    Serial.println("ESP-NOW init failed!");
     return;
   }
   
-  // Register send callback
-  esp_now_register_send_cb(OnDataSent);
-  
-  // Register peer
+  // Add peer - exactly like your working version
   esp_now_peer_info_t peerInfo;
+  memset(&peerInfo, 0, sizeof(peerInfo));
   memcpy(peerInfo.peer_addr, slaveAddress, 6);
-  peerInfo.channel = 0;  
+  peerInfo.channel = 0;
   peerInfo.encrypt = false;
   
-  // Add peer        
-  if (esp_now_add_peer(&peerInfo) != ESP_OK){
+  if (esp_now_add_peer(&peerInfo) != ESP_OK) {
     Serial.println("Failed to add peer");
-    strip.setPixelColor(0, strip.Color(255, 0, 0)); // Red for error
-    strip.show();
     return;
   }
   
-  Serial.println("ESP-NOW Master initialized successfully!");
-  Serial.println("Ready to receive serial commands and forward via ESP-NOW");
-  strip.setPixelColor(0, strip.Color(0, 255, 0)); // Green for ready
-  strip.show();
+  Serial.println("✓ Connected to slave!");
+  Serial.println("Ready to receive commands from Python");
+  Serial.println("Type 'test' to send a test command");
 }
 
 void loop() {
-  // Check if data is available on USB Serial
+  // Handle manual test command
   if (Serial.available() > 0) {
-    // Read available data
-    int bytesAvailable = Serial.available();
-    uint8_t buffer[bytesAvailable];
+    String input = Serial.readString();
+    input.trim();
     
-    unsigned long t1 = micros();
-    
-    Serial.readBytes(buffer, bytesAvailable);
-    
-    // Prepare data for ESP-NOW transmission
-    memcpy(myData.data, buffer, bytesAvailable);
-    myData.length = bytesAvailable;
-    
-    // Send message via ESP-NOW
-    esp_err_t result = esp_now_send(slaveAddress, (uint8_t *) &myData, sizeof(myData));
-    
-    if (result == ESP_OK) {
-      Serial.print("ESP-NOW: Forwarding ");
-      Serial.print(bytesAvailable);
-      Serial.println(" bytes to slave");
-    } else {
-      Serial.println("ESP-NOW: Error sending data");
-      strip.setPixelColor(0, strip.Color(255, 0, 0)); // Red for error
-      strip.show();
+    if (input == "test") {
+      Serial.println("Sending test command...");
+      
+      // Create a simple test command (start actuator 0)
+      myData.data[0] = 0x01; // Group 0, start
+      myData.data[1] = 0x40; // Address 0
+      myData.data[2] = 0x88; // Duty 1, freq 0, wave 0
+      myData.length = 3;
+      
+      // Fill rest with padding
+      for (int i = 3; i < 60; i++) {
+        myData.data[i] = 0xFF;
+      }
+      
+      esp_err_t result = esp_now_send(slaveAddress, (uint8_t*)&myData, sizeof(myData));
+      
+      if (result == ESP_OK) {
+        Serial.println("✓ Test command sent!");
+      } else {
+        Serial.println("✗ Test failed");
+        Serial.print("Error code: ");
+        Serial.println(result);
+      }
+      return;
     }
     
-    unsigned long t2 = micros();
-    Serial.print("Processed and forwarded in: ");
-    Serial.print(t2 - t1);
-    Serial.println("us");
+    // Handle binary data from Python
+    int bytesAvailable = input.length();
+    
+    Serial.print("Received ");
+    Serial.print(bytesAvailable);
+    Serial.print(" bytes from Python, sending to slave...");
+    
+    // Copy data to structure
+    memcpy(myData.data, input.c_str(), bytesAvailable);
+    myData.length = bytesAvailable;
+    
+    // Pad to 60 bytes
+    for (int i = bytesAvailable; i < 60; i++) {
+      myData.data[i] = 0xFF;
+    }
+    
+    // Send via ESP-NOW
+    esp_err_t result = esp_now_send(slaveAddress, (uint8_t*)&myData, sizeof(myData));
+    
+    if (result == ESP_OK) {
+      Serial.println(" ✓ Sent!");
+    } else {
+      Serial.println(" ✗ Failed!");
+      Serial.print("Error: ");
+      Serial.println(result);
+    }
   }
   
   delay(1);
-}
-
-// Function to update slave MAC address (call this if you need to change it)
-void updateSlaveAddress(uint8_t* newAddress) {
-  // Remove old peer
-  esp_now_del_peer(slaveAddress);
-  
-  // Update address
-  memcpy(slaveAddress, newAddress, 6);
-  
-  // Add new peer
-  esp_now_peer_info_t peerInfo;
-  memcpy(peerInfo.peer_addr, slaveAddress, 6);
-  peerInfo.channel = 0;  
-  peerInfo.encrypt = false;
-  esp_now_add_peer(&peerInfo);
-  
-  Serial.println("Slave address updated");
 }
