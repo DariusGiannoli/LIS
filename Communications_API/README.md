@@ -1,0 +1,3 @@
+- Serial: 
+- BLE: 
+- ESP-NOW: use Mac_Address_Utility.ino file to find the mac address of the slave boards and then replace it 

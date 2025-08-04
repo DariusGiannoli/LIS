@@ -1,7 +1,7 @@
 from python_serial_api import python_serial_api
 import time 
 # ──‑‑‑‑‑‑‑‑‑ 1.  EDIT THESE FOUR CONSTANTS ONLY ‑‑‑‑‑‑‑‑‑──────────
-SERIAL_PORT = "/dev/tty.usbmodem2101"   # Windows? -> "COM3" (just guess & adjust)
+SERIAL_PORT = "/dev/cu.usbmodem2101"   # Windows? -> "COM3" (just guess & adjust)
 CHAIN       = 0# 0‑3 on your unit
 #DEVICE      = 0# 0‑15 on that chain
 DUTY        = 8                # 0‑15 (higher = stronger)
@@ -21,20 +21,15 @@ if __name__ == "__main__":
         raise SystemExit("❌  Could not open the serial port")
 
 
-# api.send_command(9, DUTY, FREQ, start_or_stop=1)
-# api.send_command(10, DUTY, FREQ, start_or_stop=1)
-# api.send_command(14, DUTY, FREQ, start_or_stop=1)
-# api.send_command(15, DUTY, FREQ, start_or_stop=1)
+api.send_command(0, DUTY, FREQ, start_or_stop=1)
+time.sleep(3)
+api.send_command(0, DUTY, FREQ, start_or_stop=0)
 
-# time.sleep(3)
-# api.send_command(9, DUTY, FREQ, start_or_stop=0)
-# api.send_command(10, DUTY, FREQ, start_or_stop=0)
-# api.send_command(14, DUTY, FREQ, start_or_stop=0)
 
-for i in range(17):
-    addr = make_addr(CHAIN, i)
-    api.send_command(addr, DUTY, FREQ, start_or_stop=1)
-    time.sleep(1.5)
-    api.send_command(addr, DUTY, FREQ, start_or_stop=0) 
-    print(f"✅  Sent START to chain {CHAIN}, device {i} (addr={addr})")
-api.disconnect_serial_device()
+# for i in range(17):
+#     addr = make_addr(CHAIN, i)
+#     api.send_command(addr, DUTY, FREQ, start_or_stop=1)
+#     time.sleep(1.5)
+#     api.send_command(addr, DUTY, FREQ, start_or_stop=0) 
+#     print(f"✅  Sent START to chain {CHAIN}, device {i} (addr={addr})")
+# api.disconnect_serial_device()
