@@ -125,19 +125,19 @@ if __name__ == '__main__':
     # Example usage with GUI interaction:
     if device_names:
         if serial_api.connect_serial_device(device_names[2]):
-            # serial_api.send_command(0, 10, 2, 1)
-            # time.sleep(0.1)
-            # serial_api.send_command(1, 7, 2, 1)
-            # time.sleep(0.1)
-            # serial_api.send_command(2, 7, 2, 1)
-            # time.sleep(1)
+        #     serial_api.send_command(0, 10, 2, 1)
+        #     time.sleep(0.1)
+        #     serial_api.send_command(1, 7, 2, 1)
+        #     time.sleep(1)
+        #     serial_api.send_command(2, 7, 2, 1)
+        #     time.sleep(1)
 
-            # serial_api.send_command(0, 10, 2, 0)
-            # time.sleep(0.1)
-            # serial_api.send_command(2, 10, 2, 0)
-            # time.sleep(0.1)
-            # serial_api.send_command(1, 10, 2, 0)
-            # # time.sleep(3)
+        #     serial_api.send_command(0, 10, 2, 0)
+        #     time.sleep(0.1)
+        #     serial_api.send_command(2, 10, 2, 0)
+        #     time.sleep(0.1)
+        #     serial_api.send_command(1, 10, 2, 0)
+        #     # time.sleep(3)
 
             # Example usage with a list of commands:
             commands = [
@@ -167,7 +167,7 @@ if __name__ == '__main__':
                 } 
             ]
             serial_api.send_command_list(commands)
-            time.sleep(1)
+            time.sleep(3)
 
             for c in commands:
                 c['start_or_stop'] = 0
