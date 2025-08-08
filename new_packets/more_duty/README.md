@@ -1,0 +1,1 @@
+adds bits for better duty and frequency control
