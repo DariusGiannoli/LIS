@@ -1,0 +1,17 @@
+# Fichiers Python inutiles
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual env
+venv/
+.env/
+
+# Fichiers système
+.DS_Store
+
+# Logs
+*.log
+
+# Autres fichiers temporaires
+*.tmp
