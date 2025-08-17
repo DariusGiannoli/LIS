@@ -1,0 +1,1 @@
+for MPLAB flash put green in square and power using control unit + battery

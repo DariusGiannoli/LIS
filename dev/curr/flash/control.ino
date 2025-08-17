@@ -1,6 +1,7 @@
 #include <ArduinoJson.h>
 #include <Adafruit_NeoPixel.h>
 #include <SoftwareSerial.h>
+#include <vector>
 
 Adafruit_NeoPixel strip(1, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 
@@ -19,12 +20,10 @@ struct TimedCommand {
   int duty;
   int freq;
   int wave;
-  bool active;  // Whether this command slot is in use
 };
 
-const int MAX_QUEUED_COMMANDS = 50;  // Maximum number of queued commands
-TimedCommand command_queue[MAX_QUEUED_COMMANDS];
-int queue_head = 0;  // Next available slot in queue
+// Dynamic command queue using std::vector - NO SIZE LIMIT!
+std::vector<TimedCommand> command_queue;
 unsigned long batch_start_time = 0;  // When the current batch was received
 
 EspSoftwareSerial::UART serial_group[4];
@@ -47,10 +46,8 @@ void setup() {
     delay(200);
   }
   
-  // Initialize command queue
-  for (int i = 0; i < MAX_QUEUED_COMMANDS; i++) {
-    command_queue[i].active = false;
-  }
+  // Reserve some initial capacity for performance (optional)
+  command_queue.reserve(100);
   
   Serial.println("Starting Serial communication!");
 
@@ -65,7 +62,7 @@ void setup() {
   strip.setPixelColor(0, colors[0]);
   strip.show();
 
-  Serial.println("Ready to receive 5-byte timed commands via USB Serial!");
+  Serial.println("Ready to receive unlimited timed commands via USB Serial!");
 }
 
 void loop() {
@@ -113,12 +110,24 @@ void processSerialData(uint8_t* data, int length) {
       if (byte1 == 0xFF) continue;
 
       // Extract parameters from the 5-byte command
-      int serial_group_number = (byte1 >> 2) & 0x0F;
-      int is_start = byte1 & 0x01;
-      int addr = byte2 & 0x3F;
-      int duty = (byte3 >> 3) & 0x0F;
-      int freq = (byte3 >> 1) & 0x03;
-      int wave = byte3 & 0x01;
+      // byte1: [serial_group(4) | wave(1) | is_start(1) | addr_high(2)]
+      // byte2: [addr_low(4) | freq(3) | duty_high(1)]  
+      // byte3: [duty_low(7) | marker(1)]
+      
+      int serial_group_number = (byte1 >> 4) & 0x0F;
+      int wave = (byte1 >> 3) & 0x01;
+      int is_start = (byte1 >> 2) & 0x01;
+      int addr_high = byte1 & 0x03;
+      
+      int addr_low = (byte2 >> 4) & 0x0F;
+      int freq = (byte2 >> 1) & 0x07;
+      int duty_high = byte2 & 0x01;
+      
+      int duty_low = (byte3 >> 1) & 0x7F;  // Skip marker bit
+      
+      // Reconstruct full values
+      int addr = (addr_high << 4) | addr_low;  // 6 bits total (0-63)
+      int duty = (duty_high << 7) | duty_low;  // 8 bits total, but we'll clamp to 0-99
       
       // Reconstruct 16-bit delay from little-endian bytes
       uint16_t delay_ms = delay_low | (delay_high << 8);
@@ -126,6 +135,9 @@ void processSerialData(uint8_t* data, int length) {
       // Queue the command for timed execution
       queueTimedCommand(serial_group_number, addr, is_start, duty, freq, wave, delay_ms);
     }
+    
+    Serial.print("Total commands in queue: ");
+    Serial.println(command_queue.size());
   }
   else {
     Serial.print("ERROR: Invalid packet length: ");
@@ -135,37 +147,30 @@ void processSerialData(uint8_t* data, int length) {
 }
 
 void queueTimedCommand(int serial_group_number, int addr, int is_start, int duty, int freq, int wave, uint16_t delay_ms) {
-  // Find next available slot in queue
-  int slot = -1;
-  for (int i = 0; i < MAX_QUEUED_COMMANDS; i++) {
-    if (!command_queue[i].active) {
-      slot = i;
-      break;
-    }
-  }
-  
-  if (slot == -1) {
-    Serial.println("ERROR: Command queue full!");
-    return;
-  }
+  // Validate duty range for 100 levels
+  if (duty > 99) duty = 99;
   
   // Calculate execution time
   unsigned long execute_time = batch_start_time + delay_ms;
   
-  // Store command in queue
-  command_queue[slot].execute_time = execute_time;
-  command_queue[slot].serial_group_number = serial_group_number;
-  command_queue[slot].addr = addr;
-  command_queue[slot].is_start = is_start;
-  command_queue[slot].duty = duty;
-  command_queue[slot].freq = freq;
-  command_queue[slot].wave = wave;
-  command_queue[slot].active = true;
+  // Create new command and add to queue
+  TimedCommand cmd;
+  cmd.execute_time = execute_time;
+  cmd.serial_group_number = serial_group_number;
+  cmd.addr = addr;
+  cmd.is_start = is_start;
+  cmd.duty = duty;
+  cmd.freq = freq;
+  cmd.wave = wave;
+  
+  command_queue.push_back(cmd);
   
   Serial.print("Queued command: addr=");
   Serial.print(addr);
   Serial.print(", start=");
   Serial.print(is_start);
+  Serial.print(", duty=");
+  Serial.print(duty);
   Serial.print(", delay=");
   Serial.print(delay_ms);
   Serial.print("ms, execute_at=");
@@ -176,46 +181,78 @@ void executeQueuedCommands() {
   unsigned long current_time = millis();
   
   // Check all queued commands to see if any are ready to execute
-  for (int i = 0; i < MAX_QUEUED_COMMANDS; i++) {
-    if (command_queue[i].active && current_time >= command_queue[i].execute_time) {
+  for (auto it = command_queue.begin(); it != command_queue.end(); ) {
+    if (current_time >= it->execute_time) {
       // Execute this command
-      sendCommand(command_queue[i].serial_group_number, 
-                 command_queue[i].addr,
-                 command_queue[i].is_start,
-                 command_queue[i].duty,
-                 command_queue[i].freq,
-                 command_queue[i].wave);
+      sendCommand(it->serial_group_number, 
+                 it->addr,
+                 it->is_start,
+                 it->duty,
+                 it->freq,
+                 it->wave);
       
       Serial.print("Executed command: addr=");
-      Serial.print(command_queue[i].addr);
+      Serial.print(it->addr);
       Serial.print(", start=");
-      Serial.print(command_queue[i].is_start);
+      Serial.print(it->is_start);
+      Serial.print(", duty=");
+      Serial.print(it->duty);
       Serial.print(" at time=");
       Serial.println(current_time);
       
-      // Mark this slot as available
-      command_queue[i].active = false;
+      // Remove executed command from queue
+      it = command_queue.erase(it);
+    } else {
+      ++it;
     }
   }
 }
 
-/* command format
-    command = {
-        'addr':motor_addr,
-        'mode':start_or_stop,
-        'duty':3, # default
-        'freq':2, # default
-        'wave':0, # default
-    }
+/* Updated command format for 100 duty levels (2-byte protocol)
+    The PIC expects this protocol:
+    1. Address byte: [0|addr6|addr5|addr4|addr3|addr2|addr1|start]
+    2. Data byte 1: [1|duty6|duty5|duty4|duty3|duty2|duty1|duty0] (0-99)
+    3. Data byte 2: [1|0|0|0|0|freq2|freq1|freq0] (0-7)
+    
+    For stop commands, only the address byte is sent.
 */
 void sendCommand(int serial_group_number, int motor_addr, int is_start, int duty, int freq, int wave) {
-  if (is_start == 1) { // Start command, two bytes
-    uint8_t message[2];
+  if (is_start == 1) { // Start command: address + 2 data bytes
+    uint8_t message[3];
+    
+    // Address byte (bit 7 = 0 for address byte)
     message[0] = (motor_addr << 1) | is_start;
-    message[1] = 0x80 | (duty << 3) | (freq << 1) | wave;
-    serial_group[serial_group_number].write(message, 2);
-  } else { // Stop command, only one byte
+    
+    // Data byte 1 (bit 7 = 1 for data byte): duty level (0-99)
+    message[1] = 0x80 | (duty & 0x7F);
+    
+    // Data byte 2 (bit 7 = 1 for data byte): frequency (0-7)
+    message[2] = 0x80 | (freq & 0x07);
+    
+    serial_group[serial_group_number].write(message, 3);
+    
+    Serial.print("Sent start command: addr=");
+    Serial.print(motor_addr);
+    Serial.print(", duty=");
+    Serial.print(duty);
+    Serial.print(", freq=");
+    Serial.print(freq);
+    Serial.print(" (bytes: 0x");
+    Serial.print(message[0], HEX);
+    Serial.print(" 0x");
+    Serial.print(message[1], HEX);
+    Serial.print(" 0x");
+    Serial.print(message[2], HEX);
+    Serial.println(")");
+    
+  } else { // Stop command: only address byte
     uint8_t message = (motor_addr << 1) | is_start;
     serial_group[serial_group_number].write(&message, 1);
+    
+    Serial.print("Sent stop command: addr=");
+    Serial.print(motor_addr);
+    Serial.print(" (byte: 0x");
+    Serial.print(message, HEX);
+    Serial.println(")");
   }
 }

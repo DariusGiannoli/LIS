@@ -27,9 +27,7 @@ class SerialAPI:
             print("Error: Not connected to serial device")
             return False
         
-        if len(commands) > 20:
-            print("Error: Maximum 20 commands per batch")
-            return False
+        # Removed the 20-command limit check
             
         # Validate and build command batch
         command_bytes = bytearray()
@@ -48,13 +46,11 @@ class SerialAPI:
                 
             command_bytes += self.create_command(addr, duty, freq, start_or_stop, delay_ms)
         
-        # Pad to 100 bytes
-        padding_needed = 20 - len(commands)
-        command_bytes += bytearray([0xFF] * 5) * padding_needed
+        # No padding - send exactly what we have
         
         try:
             self.serial_connection.write(command_bytes)
-            print(f"Sent batch with {len(commands)} commands")
+            print(f"Sent batch with {len(commands)} commands ({len(command_bytes)} bytes)")
             return True
         except Exception as e:
             print(f"Failed to send batch: {e}")
