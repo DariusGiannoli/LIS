@@ -2,7 +2,7 @@
 from shared import get_4x4_grid_mapping
 from shared import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)
 
-from Categories.core.patterns import generate_static_pattern, generate_pulse_pattern
+from core.patterns import generate_static_pattern, generate_pulse_pattern
 
 def generate_horizontal_bar_patterns():
     """

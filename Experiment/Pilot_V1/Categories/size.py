@@ -1,4 +1,4 @@
-from Categories.core.patterns import generate_static_pattern, generate_pulse_pattern    
+from core.patterns import generate_static_pattern, generate_pulse_pattern    
 from shared import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, cross_actuators, h_line_actuators, v_line_actuators, square_actuators, circle_actuators, l_actuators)
 
 def l_size(): 
@@ -54,6 +54,21 @@ def v_size():
 
 def square_size():
     big = square_actuators
+    medium = None
+    small = [5, 6, 9, 10]
+
+    big_static = generate_static_pattern(big, DUTY, FREQ, DURATION)
+    medium_static = generate_static_pattern(medium, DUTY, FREQ, DURATION)
+    small_static = generate_static_pattern(small, DUTY, FREQ, DURATION)
+
+    big_pulse = generate_pulse_pattern(big, DUTY, FREQ, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)
+    medium_pulse = generate_pulse_pattern(medium, DUTY, FREQ, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)
+    small_pulse = generate_pulse_pattern(small, DUTY, FREQ, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)
+
+    return big_static, medium_static, small_static, big_pulse, medium_pulse, small_pulse
+
+def circle_size():
+    big = circle_actuators
     medium = None
     small = [5, 6, 9, 10]
 
