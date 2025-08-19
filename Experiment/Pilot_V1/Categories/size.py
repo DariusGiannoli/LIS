@@ -52,5 +52,17 @@ def v_size():
 
     return big_static, medium_static, small_static, one_static, big_pulse, medium_pulse, small_pulse, one_pulse
 
+def square_size():
+    big = square_actuators
+    medium = None
+    small = [5, 6, 9, 10]
 
+    big_static = generate_static_pattern(big, DUTY, FREQ, DURATION)
+    medium_static = generate_static_pattern(medium, DUTY, FREQ, DURATION)
+    small_static = generate_static_pattern(small, DUTY, FREQ, DURATION)
 
+    big_pulse = generate_pulse_pattern(big, DUTY, FREQ, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)
+    medium_pulse = generate_pulse_pattern(medium, DUTY, FREQ, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)
+    small_pulse = generate_pulse_pattern(small, DUTY, FREQ, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)
+
+    return big_static, medium_static, small_static, big_pulse, medium_pulse, small_pulse
