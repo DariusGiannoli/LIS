@@ -3,19 +3,27 @@ import serial.tools.list_ports
 import time
 
 class SerialAPI:
+
+    
     def __init__(self):
         self.serial_connection = None
         self.connected = False
 
-    def create_command(self, addr, duty, freq, start_or_stop, delay_ms=0):
-        """Create a 5-byte command with timing delay"""
-        serial_group = addr // 16
-        serial_addr = addr % 16
-        byte1 = (serial_group << 2) | (start_or_stop & 0x01)
-        byte2 = 0x40 | (serial_addr & 0x3F)
-        byte3 = 0x80 | ((duty & 0x0F) << 3) | (freq & 0x07)
+    def create_command(self, addr, duty, freq, start_or_stop, delay_ms=0, wave=0):
+        # Split address into serial group and local address
+        serial_group = addr // 16  # 0-7 for addresses 0-127
+        serial_addr = addr % 16    # 0-15 within each group
         
-        # 16-bit delay in milliseconds (little-endian)
+        # Byte 1: [serial_group(4)] [reserved(2)] [start_or_stop(1)]
+        byte1 = (serial_group << 2) | (start_or_stop & 0x01)
+        
+        # Byte 2: 0x40 | [addr(6)]
+        byte2 = 0x40 | (serial_addr & 0x3F)
+        
+        # Byte 3: 0x80 | [duty(4)] [freq(3)] [wave(1)]
+        byte3 = 0x80 | ((duty & 0x0F) << 3) | ((freq & 0x07) << 0) | (wave & 0x01)
+        
+        # Bytes 4-5: 16-bit delay in milliseconds (little-endian)
         delay_low = delay_ms & 0xFF
         delay_high = (delay_ms >> 8) & 0xFF
         
@@ -24,10 +32,8 @@ class SerialAPI:
     def send_timed_batch(self, commands) -> bool:
         """Send batch of commands with individual timing delays"""
         if not self.connected or self.serial_connection is None:
-            print("Error: Not connected to serial device")
+            print("❌ Error: Not connected to serial device")
             return False
-        
-        # Removed the 20-command limit check
             
         # Validate and build command batch
         command_bytes = bytearray()
@@ -37,34 +43,40 @@ class SerialAPI:
             freq = cmd.get('freq', -1)
             start_or_stop = cmd.get('start_or_stop', -1)
             delay_ms = cmd.get('delay_ms', 0)
+            wave = cmd.get('wave', 0)  # Optional wave parameter
             
             # Validate parameters
             if not (0 <= addr <= 127 and 0 <= duty <= 15 and 0 <= freq <= 7 
-                    and start_or_stop in [0, 1] and 0 <= delay_ms <= 65535):
-                print(f"Error: Invalid parameters in command {i+1}")
+                    and start_or_stop in [0, 1] and 0 <= delay_ms <= 65535 and 0 <= wave <= 1):
+                print(f"❌ Error: Invalid parameters in command {i+1}")
+                print(f"   addr={addr} (0-127), duty={duty} (0-15), freq={freq} (0-7)")
+                print(f"   start_or_stop={start_or_stop} (0-1), delay_ms={delay_ms} (0-65535), wave={wave} (0-1)")
                 return False
                 
-            command_bytes += self.create_command(addr, duty, freq, start_or_stop, delay_ms)
-        
-        # No padding - send exactly what we have
+            command_bytes += self.create_command(addr, duty, freq, start_or_stop, delay_ms, wave)
         
         try:
-            self.serial_connection.write(command_bytes)
-            print(f"Sent batch with {len(commands)} commands ({len(command_bytes)} bytes)")
+            bytes_written = self.serial_connection.write(command_bytes)
+            print(f"✅ Sent batch: {len(commands)} commands ({bytes_written} bytes)")
             return True
         except Exception as e:
-            print(f"Failed to send batch: {e}")
+            print(f"❌ Failed to send batch: {e}")
             return False
 
     def get_serial_ports(self):
         """Get list of available serial ports"""
-        ports = serial.tools.list_ports.comports()
-        return [f"{port.device} - {port.description}" for port in ports]
+        try:
+            ports = serial.tools.list_ports.comports()
+            return [f"{port.device} - {port.description}" for port in ports]
+        except Exception as e:
+            print(f"❌ Error getting ports: {e}")
+            return []
 
     def connect(self, port_info, baudrate=115200) -> bool:
         """Connect to serial device"""
         try:
             port_name = port_info.split(' - ')[0]
+            print(f"🔄 Connecting to {port_name} at {baudrate} baud...")
             
             self.serial_connection = serial.Serial(
                 port=port_name,
@@ -73,16 +85,18 @@ class SerialAPI:
                 write_timeout=1
             )
             
-            # time.sleep(0.5)  # Allow connection to establish
+            time.sleep(0.1)  # Allow connection to establish
             
             if self.serial_connection.is_open:
                 self.connected = True
-                print(f"Connected to {port_name}")
+                print(f"✅ Connected to {port_name}")
                 return True
-            return False
+            else:
+                print(f"❌ Failed to open {port_name}")
+                return False
                 
         except Exception as e:
-            print(f"Connection failed: {e}")
+            print(f"❌ Connection failed: {e}")
             self.serial_connection = None
             self.connected = False
             return False
@@ -94,47 +108,80 @@ class SerialAPI:
                 self.serial_connection.close()
                 self.connected = False
                 self.serial_connection = None
-                print("Disconnected")
+                print("✅ Disconnected")
                 return True
         except Exception as e:
-            print(f"Disconnect failed: {e}")
+            print(f"❌ Disconnect failed: {e}")
         return False
 
     def is_connected(self) -> bool:
         """Check connection status"""
         return self.connected and self.serial_connection and self.serial_connection.is_open
 
+    def test_protocol(self):
+        """Test the packet creation protocol"""
+        print("=== PROTOCOL TEST ===")
+        
+        # Test command: addr=5, duty=8, freq=3, start=1, delay=1000ms
+        test_cmd = self.create_command(addr=5, duty=8, freq=3, start_or_stop=1, delay_ms=1000, wave=0)
+        
+        print(f"Test command bytes: {[hex(b) for b in test_cmd]}")
+        print(f"Byte 1: {hex(test_cmd[0])} = serial_group={(test_cmd[0]>>2)&0x0F}, start_or_stop={test_cmd[0]&0x01}")
+        print(f"Byte 2: {hex(test_cmd[1])} = addr={test_cmd[1]&0x3F}")
+        print(f"Byte 3: {hex(test_cmd[2])} = duty={(test_cmd[2]>>3)&0x0F}, freq={test_cmd[2]&0x07}")
+        print(f"Bytes 4-5: delay = {test_cmd[3] | (test_cmd[4] << 8)}ms")
+
 
 if __name__ == '__main__':
     api = SerialAPI()
     
+    # Test protocol first
+    api.test_protocol()
+    
     # Find available ports
     ports = api.get_serial_ports()
-    print("Available ports:", ports)
+    print(f"\n📡 Available ports: {ports}")
     
-    if ports:
-        # Connect to first available port (change index as needed)
-        if api.connect(ports[2]):
-            # Simple test batch: activate 3 devices in sequence, then stop them
+    if not ports:
+        print("❌ No serial ports found")
+        exit(1)
+    
+    # Find ESP32 port automatically
+    esp32_port = None
+    for i, port in enumerate(ports):
+        if 'usbmodem' in port or 'ESP32' in port:
+            esp32_port = port
+            print(f"🎯 Found ESP32 at index {i}: {port}")
+            break
+    
+    if esp32_port:
+        # Connect to ESP32
+        if api.connect(esp32_port):
+            # Test batch: activate device 0, then stop it
             test_commands = [
-                {"addr": 0, "duty": 8, "freq": 3, "start_or_stop": 1, "delay_ms": 0},     # Start device 0 immediately
-                {"addr": 1, "duty": 8, "freq": 3, "start_or_stop": 1, "delay_ms": 200},   # Start device 1 after 200ms
-                {"addr": 2, "duty": 8, "freq": 3, "start_or_stop": 1, "delay_ms": 400},
-                {"addr": 3, "duty": 8, "freq": 3, "start_or_stop": 1, "delay_ms": 600},# Start device 2 after 400ms
-                {"addr": 0, "duty": 0, "freq": 0, "start_or_stop": 0, "delay_ms": 1000},  # Stop device 0 after 1s
-                {"addr": 1, "duty": 0, "freq": 0, "start_or_stop": 0, "delay_ms": 1200},  # Stop device 1 after 1.2s
-                {"addr": 2, "duty": 0, "freq": 0, "start_or_stop": 0, "delay_ms": 1400},
-                {"addr": 3, "duty": 0, "freq": 0, "start_or_stop": 0, "delay_ms": 1600},# Stop device 2 after 1.4s
+                {"addr": 0, "duty": 3, "freq": 3, "start_or_stop": 1, "delay_ms": 0, "wave": 0},
+                {"addr": 0, "duty": 0, "freq": 0, "start_or_stop": 0, "delay_ms": 2000, "wave": 0},
+                {"addr": 1, "duty": 3, "freq": 3, "start_or_stop": 1, "delay_ms": 0, "wave": 0},
+                {"addr": 1, "duty": 0, "freq": 0, "start_or_stop": 0, "delay_ms": 2000, "wave": 0},
+                {"addr": 2, "duty": 3, "freq": 3, "start_or_stop": 1, "delay_ms": 0, "wave": 0},
+                {"addr": 2, "duty": 0, "freq": 0, "start_or_stop": 0, "delay_ms": 2000, "wave": 0},
             ]
             
-            print("Sending test batch...")
-            api.send_timed_batch(test_commands)
+            print("📤 Sending test batch...")
+            success = api.send_timed_batch(test_commands)
             
-            # Wait for sequence to complete
-            time.sleep(2)
+            if success:
+                print("🎉 Test successful!")
+                print("⏳ Waiting for commands to execute...")
+                time.sleep(3)
+            else:
+                print("❌ Test failed!")
+            
             api.disconnect()
         else:
-            print("Failed to connect")
+            print("❌ Failed to connect to ESP32")
     else:
-        print("No serial ports found")
-        
+        print("⚠️  ESP32 device not found")
+        print("Available ports:")
+        for i, port in enumerate(ports):
+            print(f"  {i}: {port}")
