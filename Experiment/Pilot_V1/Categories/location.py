@@ -43,7 +43,7 @@ def generate_horizontal_motion_coordinates():
     """
     horizontal_motion_coords = [
         # Row 1 horizontal motions (12 patterns total)
-        [(0,0), (30,0), (60,0), (90,0), (120,0), (150,0), (180,0)],        # Pattern 0: Left to center-left
+        [0,1,2,3],        # Pattern 0: Left to center-left
         [7,6,5,4],      # Pattern 1: Center-left to center-right  
         [8,9,10,11],     # Pattern 2: Center-right to right
 # Pattern 11: Row 4 center-right to right
@@ -52,30 +52,12 @@ def generate_horizontal_motion_coordinates():
     return horizontal_motion_coords
 
 def generate_vertical_motion_coordinates():
-    """
-    Generate 3-point coordinate patterns for vertical motion
-    Each pattern uses 3 coordinates that create vertical movement
-    """
-    vertical_motion_coords = [
-        # Column 1 vertical motions (12 patterns total)
-        [(0, 0), (0, 45), (0, 90)],        # Pattern 0: Top to center-top
-        [(0, 30), (0, 75), (0, 120)],      # Pattern 1: Center-top to center-bottom
-        [(0, 60), (0, 105), (0, 150)],     # Pattern 2: Center-bottom to bottom
-        [(0, 90), (0, 135), (0, 180)],     # Pattern 3: Mid to lower-mid
-        
-        # Column 2 vertical motions
-        [(90, 0), (90, 45), (90, 90)],     # Pattern 4: Col 2 top to center-top
-        [(90, 30), (90, 75), (90, 120)],   # Pattern 5: Col 2 center-top to center-bottom
-        [(90, 60), (90, 105), (90, 150)],  # Pattern 6: Col 2 center-bottom to bottom
-        [(90, 90), (90, 135), (90, 180)],  # Pattern 7: Col 2 mid to lower-mid
-        
-        # Column 3 vertical motions
-        [(180, 0), (180, 45), (180, 90)],  # Pattern 8: Col 3 top to center-top
-        [(180, 30), (180, 75), (180, 120)], # Pattern 9: Col 3 center-top to center-bottom
-        [(180, 60), (180, 105), (180, 150)], # Pattern 10: Col 3 center-bottom to bottom
-        [(180, 90), (180, 135), (180, 180)], # Pattern 11: Col 3 mid to lower-mid
-    ]
     
+    vertical_motion_coords = [
+        [0,1,2,3],        # Pattern 0: Left to center-left
+        [7,6,5,4],      # Pattern 1: Center-left to center-right  
+        [8,9,10,11],
+    ]
     return vertical_motion_coords
 
 def create_all_commands(DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES):

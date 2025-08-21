@@ -29,65 +29,38 @@ class MotionEngine:
     
     def __init__(self):
         self.actuators = LAYOUT_POSITIONS
-        self.triangles = self._compute_triangles()
-    
-    def _compute_triangles(self):
-        """Compute valid actuator triangles"""
-        triangles = []
-        ids = list(self.actuators.keys())
-        
-        for i in range(len(ids)):
-            for j in range(i + 1, len(ids)):
-                for k in range(j + 1, len(ids)):
-                    pos1, pos2, pos3 = self.actuators[ids[i]], self.actuators[ids[j]], self.actuators[ids[k]]
-                    
-                    # Calculate triangle area
-                    area = abs((pos1[0]*(pos2[1]-pos3[1]) + pos2[0]*(pos3[1]-pos1[1]) + pos3[0]*(pos1[1]-pos2[1])) / 2)
-                    
-                    if area >= MOTION_PARAMS['MIN_TRIANGLE_AREA']:
-                        triangles.append({
-                            'actuators': [ids[i], ids[j], ids[k]],
-                            'positions': [pos1, pos2, pos3],
-                            'area': area,
-                            'center': ((pos1[0]+pos2[0]+pos3[0])/3, (pos1[1]+pos2[1]+pos3[1])/3)
-                        })
-        
-        return sorted(triangles, key=lambda t: t['area'], reverse=True)
-    
-    def _point_in_triangle(self, point, triangle_pos):
-        """Check if point is inside triangle"""
-        def sign(p1, p2, p3):
-            return (p1[0] - p3[0]) * (p2[1] - p3[1]) - (p2[0] - p3[0]) * (p1[1] - p3[1])
-        
-        d1 = sign(point, triangle_pos[0], triangle_pos[1])
-        d2 = sign(point, triangle_pos[1], triangle_pos[2])
-        d3 = sign(point, triangle_pos[2], triangle_pos[0])
-        
-        has_neg = (d1 < 0) or (d2 < 0) or (d3 < 0)
-        has_pos = (d1 > 0) or (d2 > 0) or (d3 > 0)
-        
-        return not (has_neg and has_pos)
     
     def _find_best_triangle(self, position):
-        """Find best triangle for phantom placement"""
-        # Try containing triangles first
-        for triangle in self.triangles:
-            if self._point_in_triangle(position, triangle['positions']):
-                return triangle
-        
-        # Find closest by center distance
-        if self.triangles:
-            return min(self.triangles, 
-                    key=lambda t: math.sqrt((position[0] - t['center'][0])**2 + (position[1] - t['center'][1])**2))
-        return None
-    
-    def _calculate_phantom_intensities(self, phantom_pos, triangle_actuators, desired_intensity):
-        """Calculate 3-actuator phantom intensities using Park et al. energy model"""
+        """Find the 3 closest actuators to the target position"""
+        # Calculate distances from target position to all actuators
         distances = []
-        for act_id in triangle_actuators:
-            act_pos = self.actuators[act_id]
-            dist = math.sqrt((phantom_pos[0] - act_pos[0])**2 + (phantom_pos[1] - act_pos[1])**2)
-            distances.append(max(dist, 0.1))
+        for actuator_id, actuator_pos in self.actuators.items():
+            dist = math.sqrt((position[0] - actuator_pos[0])**2 + (position[1] - actuator_pos[1])**2)
+            distances.append((dist, actuator_id, actuator_pos))
+        
+        # Sort by distance and take the 3 closest
+        distances.sort(key=lambda x: x[0])
+        closest_three = distances[:3]
+        
+        # Return triangle info for the 3 closest actuators
+        return {
+            'actuators': [item[1] for item in closest_three],  # actuator IDs
+            'positions': [item[2] for item in closest_three], # actuator positions
+            'distances': [item[0] for item in closest_three]  # distances for debugging
+        }
+    
+    def _calculate_phantom_intensities(self, phantom_pos, triangle_actuators, desired_intensity, distances=None):
+        """Calculate 3-actuator phantom intensities using Park et al. energy model"""
+        if distances is None:
+            # Calculate distances if not provided
+            distances = []
+            for act_id in triangle_actuators:
+                act_pos = self.actuators[act_id]
+                dist = math.sqrt((phantom_pos[0] - act_pos[0])**2 + (phantom_pos[1] - act_pos[1])**2)
+                distances.append(max(dist, 0.1))
+        else:
+            # Use provided distances but ensure minimum distance
+            distances = [max(d, 0.1) for d in distances]
         
         # Park et al. energy model: Ai = √(1/di / Σ(1/dj)) × Av
         sum_inv_distances = sum(1/d for d in distances)
@@ -112,12 +85,18 @@ class MotionEngine:
                     'intensities': [intensity]
                 }
         
-        # Only use triangulation for positions NOT at exact actuator locations
+        # Find the 3 closest actuators for phantom sensation
         triangle = self._find_best_triangle(position)
         if not triangle:
             return None
         
-        intensities = self._calculate_phantom_intensities(position, triangle['actuators'], intensity)
+        # Calculate phantom intensities using the pre-calculated distances
+        intensities = self._calculate_phantom_intensities(
+            position, 
+            triangle['actuators'], 
+            intensity,
+            distances=triangle['distances']
+        )
         
         return {
             'actuators': triangle['actuators'],
