@@ -1,8 +1,7 @@
-
 from shared import get_4x4_grid_mapping
-from shared import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)
+from shared import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, VELOCITY)
 
-from core.patterns import generate_static_pattern, generate_pulse_pattern
+from core.patterns import generate_static_pattern, generate_pulse_pattern, generate_coordinate_pattern
 
 def generate_horizontal_bar_patterns():
     """
@@ -36,6 +35,48 @@ def generate_vertical_bar_patterns():
             vertical_patterns.append(device_pair)
     
     return vertical_patterns
+
+def generate_horizontal_motion_coordinates():
+    """
+    Generate 3-point coordinate patterns for horizontal motion
+    Each pattern uses 3 coordinates that create horizontal movement
+    """
+    horizontal_motion_coords = [
+        # Row 1 horizontal motions (12 patterns total)
+        [(0,0), (30,0), (60,0), (90,0), (120,0), (150,0), (180,0)],        # Pattern 0: Left to center-left
+        [7,6,5,4],      # Pattern 1: Center-left to center-right  
+        [8,9,10,11],     # Pattern 2: Center-right to right
+# Pattern 11: Row 4 center-right to right
+    ]
+    
+    return horizontal_motion_coords
+
+def generate_vertical_motion_coordinates():
+    """
+    Generate 3-point coordinate patterns for vertical motion
+    Each pattern uses 3 coordinates that create vertical movement
+    """
+    vertical_motion_coords = [
+        # Column 1 vertical motions (12 patterns total)
+        [(0, 0), (0, 45), (0, 90)],        # Pattern 0: Top to center-top
+        [(0, 30), (0, 75), (0, 120)],      # Pattern 1: Center-top to center-bottom
+        [(0, 60), (0, 105), (0, 150)],     # Pattern 2: Center-bottom to bottom
+        [(0, 90), (0, 135), (0, 180)],     # Pattern 3: Mid to lower-mid
+        
+        # Column 2 vertical motions
+        [(90, 0), (90, 45), (90, 90)],     # Pattern 4: Col 2 top to center-top
+        [(90, 30), (90, 75), (90, 120)],   # Pattern 5: Col 2 center-top to center-bottom
+        [(90, 60), (90, 105), (90, 150)],  # Pattern 6: Col 2 center-bottom to bottom
+        [(90, 90), (90, 135), (90, 180)],  # Pattern 7: Col 2 mid to lower-mid
+        
+        # Column 3 vertical motions
+        [(180, 0), (180, 45), (180, 90)],  # Pattern 8: Col 3 top to center-top
+        [(180, 30), (180, 75), (180, 120)], # Pattern 9: Col 3 center-top to center-bottom
+        [(180, 60), (180, 105), (180, 150)], # Pattern 10: Col 3 center-bottom to bottom
+        [(180, 90), (180, 135), (180, 180)], # Pattern 11: Col 3 mid to lower-mid
+    ]
+    
+    return vertical_motion_coords
 
 def create_all_commands(DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES):
     """
@@ -83,6 +124,79 @@ def create_all_commands(DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NU
         'pulse_horizontal': pulse_horizontal,
         'pulse_vertical': pulse_vertical
     }
+
+def create_motion_commands(DUTY, FREQ, VELOCITY):
+    """
+    Create motion commands using 3-coordinate patterns
+    
+    Returns:
+        dict with 2 lists:
+        - motion_horizontal: List of motion commands for horizontal patterns (12 patterns)
+        - motion_vertical: List of motion commands for vertical patterns (12 patterns)
+    """
+    
+    horizontal_coords = generate_horizontal_motion_coordinates()
+    vertical_coords = generate_vertical_motion_coordinates()
+    
+    motion_horizontal = []
+    motion_vertical = []
+    
+    # Generate horizontal motion commands
+    for coords in horizontal_coords:
+        commands = generate_coordinate_pattern(
+            coordinates=coords,
+            velocity=VELOCITY,
+            intensity=DUTY,
+            freq=FREQ
+        )
+        motion_horizontal.append(commands)
+    
+    # Generate vertical motion commands
+    for coords in vertical_coords:
+        commands = generate_coordinate_pattern(
+            coordinates=coords,
+            velocity=VELOCITY,
+            intensity=DUTY,
+            freq=FREQ
+        )
+        motion_vertical.append(commands)
+    
+    return {
+        'motion_horizontal': motion_horizontal,
+        'motion_vertical': motion_vertical
+    }
+
+def create_all_commands_with_motion(DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, VELOCITY):
+    """
+    Create ALL commands including motion patterns
+    
+    Returns:
+        dict with 6 lists:
+        - static_horizontal: List of static commands for horizontal patterns
+        - static_vertical: List of static commands for vertical patterns  
+        - pulse_horizontal: List of pulse commands for horizontal patterns
+        - pulse_vertical: List of pulse commands for vertical patterns
+        - motion_horizontal: List of motion commands for horizontal patterns
+        - motion_vertical: List of motion commands for vertical patterns
+    """
+    
+    # Get static and pulse commands
+    basic_commands = create_all_commands(DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)
+    
+    # Get motion commands
+    motion_commands = create_motion_commands(DUTY, FREQ, VELOCITY)
+    
+    # Combine all commands
+    all_commands = {
+        'static_horizontal': basic_commands['static_horizontal'],
+        'static_vertical': basic_commands['static_vertical'],
+        'pulse_horizontal': basic_commands['pulse_horizontal'], 
+        'pulse_vertical': basic_commands['pulse_vertical'],
+        'motion_horizontal': motion_commands['motion_horizontal'],
+        'motion_vertical': motion_commands['motion_vertical']
+    }
+    
+    return all_commands
 
 def create_static_commands(DUTY, FREQ, DURATION):
     """Create only static commands"""
