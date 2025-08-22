@@ -8,8 +8,8 @@ from categories.location import create_all_commands_with_motion
 from core.serial_api import SerialAPI
 from shared import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, LAYOUT_POSITIONS, VELOCITY)
 
-sleep_during = 2
-sleep_between = 3
+sleep_during = 1.5
+sleep_between = 2
 
 # Get ALL commands (static, pulse, motion)
 all_commands = create_all_commands_with_motion(DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, VELOCITY)
@@ -33,11 +33,10 @@ pulse_horizontal_mixed = [pulse_horizontal[2], pulse_horizontal[7], pulse_horizo
 pulse_vertical_mixed = [pulse_vertical[5], pulse_vertical[1], pulse_vertical[8], pulse_vertical[3], pulse_vertical[10], pulse_vertical[0], pulse_vertical[7], pulse_vertical[2], pulse_vertical[11], pulse_vertical[4], pulse_vertical[6], pulse_vertical[9]]
 
 # MOTION
-#motion_horizontal_mixed = [motion_horizontal[2], motion_horizontal[7], motion_horizontal[0], motion_horizontal[9], motion_horizontal[4], motion_horizontal[11], motion_horizontal[1], motion_horizontal[6], motion_horizontal[3], motion_horizontal[8], motion_horizontal[5], motion_horizontal[10]]
-#motion_vertical_mixed = [motion_vertical[5], motion_vertical[1], motion_vertical[8], motion_vertical[3], motion_vertical[10], motion_vertical[0], motion_vertical[7], motion_vertical[2], motion_vertical[11], motion_vertical[4], motion_vertical[6], motion_vertical[9]]
+motion_horizontal_mixed = [motion_horizontal[2], motion_horizontal[7], motion_horizontal[0], motion_horizontal[9], motion_horizontal[4], motion_horizontal[11], motion_horizontal[1], motion_horizontal[6], motion_horizontal[3], motion_horizontal[8], motion_horizontal[5], motion_horizontal[10]]
+motion_vertical_mixed = [motion_vertical[5], motion_vertical[1], motion_vertical[8], motion_vertical[3], motion_vertical[10], motion_vertical[0], motion_vertical[7], motion_vertical[2], motion_vertical[11], motion_vertical[4], motion_vertical[6], motion_vertical[9]]
 
-motion_horizontal_mixed = [motion_horizontal[0], motion_horizontal[1], motion_horizontal[2]]
-motion_vertical_mixed = [motion_vertical[0], motion_vertical[1], motion_vertical[2]]
+
 
 if __name__ == "__main__":
     

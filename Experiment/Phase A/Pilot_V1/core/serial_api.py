@@ -12,7 +12,7 @@ class SerialAPI:
     def create_command(self, addr, duty, freq, start_or_stop, delay_ms=0, wave=0):
         # Split address into serial group and local address
         serial_group = addr // 16  # 0-7 for addresses 0-127
-        serial_addr = addr % 16    # 0-15 within each group
+        serial_addr = addr % 16  # 0-15 within each group
         
         # Byte 1: [serial_group(4)] [reserved(2)] [start_or_stop(1)]
         byte1 = (serial_group << 2) | (start_or_stop & 0x01)
@@ -118,25 +118,11 @@ class SerialAPI:
         """Check connection status"""
         return self.connected and self.serial_connection and self.serial_connection.is_open
 
-    def test_protocol(self):
-        """Test the packet creation protocol"""
-        print("=== PROTOCOL TEST ===")
-        
-        # Test command: addr=5, duty=8, freq=3, start=1, delay=1000ms
-        test_cmd = self.create_command(addr=5, duty=8, freq=3, start_or_stop=1, delay_ms=1000, wave=0)
-        
-        print(f"Test command bytes: {[hex(b) for b in test_cmd]}")
-        print(f"Byte 1: {hex(test_cmd[0])} = serial_group={(test_cmd[0]>>2)&0x0F}, start_or_stop={test_cmd[0]&0x01}")
-        print(f"Byte 2: {hex(test_cmd[1])} = addr={test_cmd[1]&0x3F}")
-        print(f"Byte 3: {hex(test_cmd[2])} = duty={(test_cmd[2]>>3)&0x0F}, freq={test_cmd[2]&0x07}")
-        print(f"Bytes 4-5: delay = {test_cmd[3] | (test_cmd[4] << 8)}ms")
-
 
 if __name__ == '__main__':
     api = SerialAPI()
     
     # Test protocol first
-    api.test_protocol()
     
     # Find available ports
     ports = api.get_serial_ports()
@@ -165,6 +151,10 @@ if __name__ == '__main__':
                 {"addr": 1, "duty": 0, "freq": 0, "start_or_stop": 0, "delay_ms": 2000, "wave": 0},
                 {"addr": 2, "duty": 3, "freq": 3, "start_or_stop": 1, "delay_ms": 0, "wave": 0},
                 {"addr": 2, "duty": 0, "freq": 0, "start_or_stop": 0, "delay_ms": 2000, "wave": 0},
+                {"addr": 3, "duty": 3, "freq": 3, "start_or_stop": 1, "delay_ms": 0, "wave": 0},
+                {"addr": 3, "duty": 0, "freq": 0, "start_or_stop": 0, "delay_ms": 2000, "wave": 0},
+                {"addr": 4, "duty": 3, "freq": 3, "start_or_stop": 1, "delay_ms": 0, "wave": 0},
+                {"addr": 4, "duty": 0, "freq": 0, "start_or_stop": 0, "delay_ms": 2000, "wave": 0},
             ]
             
             print("📤 Sending test batch...")

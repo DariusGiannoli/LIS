@@ -37,28 +37,46 @@ def generate_vertical_bar_patterns():
     return vertical_patterns
 
 def generate_horizontal_motion_coordinates():
-    """
-    Generate 3-point coordinate patterns for horizontal motion
-    Each pattern uses 3 coordinates that create horizontal movement
-    """
-    horizontal_motion_coords = [
-        # Row 1 horizontal motions (12 patterns total)
-        [0,1,2,3],        # Pattern 0: Left to center-left
-        [7,6,5,4],      # Pattern 1: Center-left to center-right  
-        [8,9,10,11],     # Pattern 2: Center-right to right
-# Pattern 11: Row 4 center-right to right
+
+    return [
+        # Row 0
+        [0, (30, 0), 1],
+        [1, (90, 0), 2],
+        [2, (150, 0), 3],
+        # Row 1
+        [7, (30, 60), 6],
+        [6, (90, 60), 5],
+        [5, (150, 60), 4],
+        # Row 2
+        [8, (30, 120), 9],
+        [9, (90, 120), 10],
+        [10, (150, 120), 11],
+        # Row 3
+        [15, (30, 180), 14],
+        [14, (90, 180), 13],
+        [13, (150, 180), 12],
     ]
-    
-    return horizontal_motion_coords
 
 def generate_vertical_motion_coordinates():
     
-    vertical_motion_coords = [
-        [0,1,2,3],        # Pattern 0: Left to center-left
-        [7,6,5,4],      # Pattern 1: Center-left to center-right  
-        [8,9,10,11],
+    return [
+        # Column 0
+        [0, (0, 30), 7],
+        [7, (0, 90), 8],
+        [8, (0, 150), 15],
+        # Column 1
+        [1, (60, 30), 6],
+        [6, (60, 90), 9],
+        [9, (60, 150), 14], 
+        # Column 2
+        [2, (120, 30), 5],
+        [5, (120, 90), 10],
+        [10, (120, 150), 13],
+        # Column 3
+        [3, (180, 30), 4],
+        [4, (180, 90), 11],
+        [11, (180, 150), 12],
     ]
-    return vertical_motion_coords
 
 def create_all_commands(DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES):
     """
