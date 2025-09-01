@@ -3,7 +3,7 @@ from typing import List, Tuple, Dict, Optional
 from core.patterns import get_motion_engine
 from core.shared import LAYOUT_POSITIONS, DUTY, VELOCITY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES
 from core.patterns import generate_static_pattern, generate_pulse_pattern, generate_coordinate_pattern    
-from Layouts.motion_actuators import *
+from core.motion_actuators import *
 
 # Define directional pattern configurations
 # Each angle maps to: (phantom_actuators, direct_actuators, phantom_ratio)

@@ -1,6 +1,6 @@
 from core.patterns import generate_coordinate_pattern, generate_static_pattern, generate_pulse_pattern    
 from core.shared import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, VELOCITY, cross_actuators, h_line_actuators, v_line_actuators, square_actuators, circle_actuators, l_actuators)
-from Layouts.motion_actuators import square, circle, h_line, v_line, l, cross
+from core.motion_actuators import square, circle, h_line, v_line, l, cross
 
 
 def cross_pattern():

@@ -1,7 +1,7 @@
 from core.patterns import generate_static_pattern, generate_pulse_pattern, generate_coordinate_pattern    
 from core.shared import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, VELOCITY,
                    cross_actuators, h_line_actuators, v_line_actuators, square_actuators, circle_actuators, l_actuators)
-from Layouts.motion_actuators import square, circle, h_line, v_line, l
+from core.motion_actuators import square, circle, h_line, v_line, l
 
 def l_size_pattern(): 
     """L-shape in 3 sizes: big, medium, small"""
