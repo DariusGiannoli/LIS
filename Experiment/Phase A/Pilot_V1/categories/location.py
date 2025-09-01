@@ -1,6 +1,5 @@
+import itertools
 from core.shared import get_4x4_grid_mapping
-from core.shared import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, VELOCITY)
-
 from core.patterns import generate_static_pattern, generate_pulse_pattern, generate_coordinate_pattern
 
 def generate_horizontal_bar_patterns():
@@ -12,12 +11,11 @@ def generate_horizontal_bar_patterns():
     """
     grid = get_4x4_grid_mapping()
     horizontal_patterns = []
-    
-    for row in range(4):
-        for col in range(3):  # 3 adjacent pairs per row
-            device_pair = [grid[row][col], grid[row][col + 1]]
-            horizontal_patterns.append(device_pair)
-    
+
+    for row, col in itertools.product(range(4), range(3)):
+        device_pair = [grid[row][col], grid[row][col + 1]]
+        horizontal_patterns.append(device_pair)
+
     return horizontal_patterns
 
 def generate_vertical_bar_patterns():
@@ -28,12 +26,11 @@ def generate_vertical_bar_patterns():
     """
     grid = get_4x4_grid_mapping()
     vertical_patterns = []
-    
-    for col in range(4):
-        for row in range(3):  # 3 adjacent pairs per column
-            device_pair = [grid[row][col], grid[row + 1][col]]
-            vertical_patterns.append(device_pair)
-    
+
+    for col, row in itertools.product(range(4), range(3)):
+        device_pair = [grid[row][col], grid[row + 1][col]]
+        vertical_patterns.append(device_pair)
+
     return vertical_patterns
 
 def generate_horizontal_motion_coordinates():
@@ -79,17 +76,7 @@ def generate_vertical_motion_coordinates():
     ]
 
 def create_all_commands(DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES):
-    """
-    Create all commands organized in 4 lists
-    
-    Returns:
-        dict with 4 lists:
-        - static_horizontal: List of static commands for horizontal patterns
-        - static_vertical: List of static commands for vertical patterns  
-        - pulse_horizontal: List of pulse commands for horizontal patterns
-        - pulse_vertical: List of pulse commands for vertical patterns
-    """
-    
+        
     horizontal_pairs = generate_horizontal_bar_patterns()
     vertical_pairs = generate_vertical_bar_patterns()
     

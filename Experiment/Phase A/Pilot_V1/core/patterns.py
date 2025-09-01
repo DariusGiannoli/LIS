@@ -1,7 +1,7 @@
 import math
 from typing import List, Tuple, Dict, Optional, Union
 from dataclasses import dataclass
-from core.shared import LAYOUT_POSITIONS, MOTION_PARAMS
+from core.shared import LAYOUT_POSITIONS, MOTION_PARAMS, FREQ, DURATION, DUTY, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, VELOCITY
 
 @dataclass
 class MotionCommand:
@@ -116,7 +116,7 @@ class MotionEngine:
         
         return commands
 
-def generate_coordinate_pattern(coordinates, velocity=60, intensity=8, freq=3, duration=0.06):
+def generate_coordinate_pattern(coordinates, velocity=VELOCITY, intensity=DUTY, freq=FREQ, duration=0.06):
 
     # Check if this is all device addresses (simple sequential motion)
     if all(isinstance(item, int) for item in coordinates):
@@ -180,66 +180,68 @@ def _convert_to_coordinates(mixed_list: List[Union[int, Tuple[float, float]]]) -
 # MAIN PATTERN FUNCTIONS
 # ================================
 
-def generate_static_pattern(devices, duty=8, freq=3, duration=2000):
+def generate_static_pattern(devices, duty=DUTY, freq=FREQ, duration=DURATION):
     """Generate static vibration pattern for all devices, supporting per-actuator duty if duty is a list"""
     commands = []
     # Support per-actuator duty cycle
-    if isinstance(duty, list):
-        duties = duty
-    else:
-        duties = [duty] * len(devices)
+    duties = duty if isinstance(duty, list) else [duty] * len(devices)
     # Start all devices immediately
-    for addr, d in zip(devices, duties):
-        commands.append({
+    commands.extend(
+        {
             "addr": addr,
             "duty": d,
             "freq": freq,
             "start_or_stop": 1,
-            "delay_ms": 0
-        })
+            "delay_ms": 0,
+        }
+        for addr, d in zip(devices, duties)
+    )
     # Stop all devices after duration
-    for addr in devices:
-        commands.append({
+    commands.extend(
+        {
             "addr": addr,
             "duty": 0,
             "freq": 0,
             "start_or_stop": 0,
-            "delay_ms": duration
-        })
+            "delay_ms": duration,
+        }
+        for addr in devices
+    )
     return commands
 
-def generate_pulse_pattern(devices, duty=8, freq=3, pulse_duration=500, pause_duration=500, num_pulses=3):
+def generate_pulse_pattern(devices, duty=DUTY, freq=FREQ, pulse_duration=PULSE_DURATION, pause_duration=PAUSE_DURATION, num_pulses=NUM_PULSES):
     """Generate pulsed vibration pattern, supporting per-actuator duty if duty is a list"""
     commands = []
-    if isinstance(duty, list):
-        duties = duty
-    else:
-        duties = [duty] * len(devices)
+    duties = duty if isinstance(duty, list) else [duty] * len(devices)
     for pulse_num in range(num_pulses):
         # Calculate timing for this pulse
         pulse_start_time = pulse_num * (pulse_duration + pause_duration)
         pulse_stop_time = pulse_start_time + pulse_duration
         # Start all devices for this pulse
-        for addr, d in zip(devices, duties):
-            commands.append({
+        commands.extend(
+            {
                 "addr": addr,
                 "duty": d,
                 "freq": freq,
                 "start_or_stop": 1,
-                "delay_ms": pulse_start_time
-            })
+                "delay_ms": pulse_start_time,
+            }
+            for addr, d in zip(devices, duties)
+        )
         # Stop all devices after pulse duration
-        for addr in devices:
-            commands.append({
+        commands.extend(
+            {
                 "addr": addr,
                 "duty": 0,
                 "freq": 0,
                 "start_or_stop": 0,
-                "delay_ms": pulse_stop_time
-            })
+                "delay_ms": pulse_stop_time,
+            }
+            for addr in devices
+        )
     return commands
 
-def generate_motion_pattern(devices, motion_type="circle", velocity=60, intensity=8, freq=3, duration=0.06, **kwargs):
+def generate_motion_pattern(devices, velocity=VELOCITY, intensity=DUTY, freq=FREQ, duration=0.06, **kwargs):
     """
     Generate motion pattern using the exact devices/coordinates provided.
     
@@ -258,18 +260,18 @@ def generate_motion_pattern(devices, motion_type="circle", velocity=60, intensit
     """
     
     engine = get_motion_engine()
-    
+
     # Convert everything to coordinates for consistent processing
     coordinates = _convert_to_coordinates(devices)
-    
+
     if len(coordinates) < 1:
         print("Warning: No valid coordinates found")
         return []
-    
+
     # Use the exact coordinates provided - no built-in pattern generation
     trajectory = coordinates
     available_devices = set(LAYOUT_POSITIONS.keys())  # Use all available devices for phantom sensations
-    
+
     # Generate motion commands
     motion_commands = engine.generate_motion_commands(
         trajectory,
@@ -277,62 +279,64 @@ def generate_motion_pattern(devices, motion_type="circle", velocity=60, intensit
         intensity=intensity / 15.0,  # Convert to 0-1 scale
         duration=duration
     )
-    
+
     # Convert to command format
     commands = []
-    
+
     for cmd in motion_commands:
         if cmd.actuator_id in available_devices:
             device_intensity = max(1, min(15, int(cmd.intensity * 15)))
-            
-            # Start command
-            commands.append({
-                "addr": cmd.actuator_id,
-                "duty": device_intensity,
-                "freq": freq,
-                "start_or_stop": 1,
-                "delay_ms": int(cmd.onset_time * 1000)
-            })
-            
-            # Stop command
-            commands.append({
-                "addr": cmd.actuator_id,
-                "duty": 0,
-                "freq": 0,
-                "start_or_stop": 0,
-                "delay_ms": int((cmd.onset_time + cmd.duration) * 1000)
-            })
-    
+
+            commands.extend(
+                (
+                    {
+                        "addr": cmd.actuator_id,
+                        "duty": device_intensity,
+                        "freq": freq,
+                        "start_or_stop": 1,
+                        "delay_ms": int(cmd.onset_time * 1000),
+                    },
+                    {
+                        "addr": cmd.actuator_id,
+                        "duty": 0,
+                        "freq": 0,
+                        "start_or_stop": 0,
+                        "delay_ms": int(
+                            (cmd.onset_time + cmd.duration) * 1000
+                        ),
+                    },
+                )
+            )
     # Sort by delay time
     commands.sort(key=lambda x: x['delay_ms'])
-    
+
     return commands
 
-def generate_sequential_pattern(devices, duty=8, freq=3, duration_per_device=500, pause_between=100):
+def generate_sequential_pattern(devices, duty=DUTY, freq=FREQ, duration_per_device=500, pause_between=100):
     """Generate sequential activation pattern through devices in order"""
     commands = []
     current_time = 0
-    
+
     for addr in devices:
-        # Start this device
-        commands.append({
-            "addr": addr,
-            "duty": duty,
-            "freq": freq,
-            "start_or_stop": 1,
-            "delay_ms": current_time
-        })
-        
-        # Stop this device
-        commands.append({
-            "addr": addr,
-            "duty": 0,
-            "freq": 0,
-            "start_or_stop": 0,
-            "delay_ms": current_time + duration_per_device
-        })
-        
+        commands.extend(
+            (
+                {
+                    "addr": addr,
+                    "duty": duty,
+                    "freq": freq,
+                    "start_or_stop": 1,
+                    "delay_ms": current_time,
+                },
+                {
+                    "addr": addr,
+                    "duty": 0,
+                    "freq": 0,
+                    "start_or_stop": 0,
+                    "delay_ms": current_time + duration_per_device,
+                },
+            )
+        )
         # Move to next device timing
         current_time += duration_per_device + pause_between
-    
+
     return commands
