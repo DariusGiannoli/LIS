@@ -28,23 +28,40 @@ def create_random_indices(length=12):
     random.shuffle(indices)
     return indices
 
+def create_combined_random_patterns(pattern_dict, pattern_type_name, random_order):
+    """Create a combined list mixing all pattern types for a given orientation"""
+    pattern_types = ['static', 'pulse', 'motion']
+    all_combinations = []
+    
+    # Create all combinations of pattern index + pattern type
+    for i, pattern_index in enumerate(random_order):
+        for pattern_type in pattern_types:
+            pattern_key = f"{pattern_type}_{pattern_type_name}"
+            pattern_data = pattern_dict[pattern_key][pattern_index]
+            all_combinations.append({
+                'pattern': pattern_data,
+                'type': pattern_type,
+                'original_index': pattern_index,
+                'randomized_position': i,
+                'name': f"{pattern_type}_{pattern_type_name}_{pattern_index+1}"
+            })
+    
+    # Shuffle the complete list to mix pattern types
+    random.shuffle(all_combinations)
+    return all_combinations
+
 horizontal_random_order = create_random_indices(12)
 vertical_random_order = create_random_indices(12)
 
 print(f"Horizontal random order: {horizontal_random_order}")
 print(f"Vertical random order: {vertical_random_order}")
 
-# STATIC
-static_horizontal_mixed = [static_horizontal[i] for i in horizontal_random_order]
-static_vertical_mixed = [static_vertical[i] for i in vertical_random_order]
+# Create combined randomized patterns
+horizontal_combined = create_combined_random_patterns(all_commands, 'horizontal', horizontal_random_order)
+vertical_combined = create_combined_random_patterns(all_commands, 'vertical', vertical_random_order)
 
-# PULSE
-pulse_horizontal_mixed = [pulse_horizontal[i] for i in horizontal_random_order]
-pulse_vertical_mixed = [pulse_vertical[i] for i in vertical_random_order]
-
-# MOTION
-motion_horizontal_mixed = [motion_horizontal[i] for i in horizontal_random_order]
-motion_vertical_mixed = [motion_vertical[i] for i in vertical_random_order]
+print(f"Horizontal combined order: {[p['name'] for p in horizontal_combined[:6]]}...") # Show first 6
+print(f"Vertical combined order: {[p['name'] for p in vertical_combined[:6]]}...")  # Show first 6
 
 def wait_for_input(pattern_name, pattern_num, total_patterns):
     """Wait for user input to repeat or continue"""
@@ -79,27 +96,27 @@ def wait_for_section_continue(section_name):
         return 'quit'
 
 
-def run_pattern_section(api, patterns, section_name):
-    """Run a section of patterns with interactive controls"""
+def run_combined_patterns(api, combined_patterns, section_name):
+    """Run combined patterns with interactive controls"""
     print(f"\n=== {section_name.upper()} PATTERNS ===")
 
     idx = 0
-    while idx < len(patterns):
-        pattern = patterns[idx]
+    while idx < len(combined_patterns):
+        pattern_info = combined_patterns[idx]
+        pattern = pattern_info['pattern']
         current_num = idx + 1
 
-        print(f"\nPlaying {section_name} {current_num} of {len(patterns)}")
+        print(f"\nPlaying {pattern_info['name']} ({current_num} of {len(combined_patterns)})")
         api.send_timed_batch(pattern)
         time.sleep(sleep_during)
 
-        action = wait_for_input(section_name, current_num, len(patterns))
+        action = wait_for_input(pattern_info['name'], current_num, len(combined_patterns))
 
         if action == 'next':
             # Move to next pattern
             idx += 1
         elif action == 'quit':
             return 'quit'
-
         elif action == 'repeat':
             # Stay at same index to repeat
             continue
@@ -116,20 +133,17 @@ if __name__ == "__main__":
         
         print("=== INTERACTIVE LOCATION STUDY ===")
         print("Controls: 'r' = repeat pattern, 'n' = next pattern, 'q' = quit")
+        print(f"Total patterns: {len(horizontal_combined)} horizontal + {len(vertical_combined)} vertical")
         
-        # Define all sections
+        # Define sections with combined randomized patterns
         sections = [
-            (static_horizontal_mixed, "Static Horizontal"),
-            (pulse_horizontal_mixed, "Pulse Horizontal"), 
-            (motion_horizontal_mixed, "Motion Horizontal"),
-            (static_vertical_mixed, "Static Vertical"),
-            (pulse_vertical_mixed, "Pulse Vertical"),
-            (motion_vertical_mixed, "Motion Vertical")
+            (horizontal_combined, "Combined Horizontal (Static/Pulse/Motion)"),
+            (vertical_combined, "Combined Vertical (Static/Pulse/Motion)")
         ]
         
         # Run each section
         for i, (patterns, section_name) in enumerate(sections):
-            result = run_pattern_section(api, patterns, section_name)
+            result = run_combined_patterns(api, patterns, section_name)
             
             if result == 'quit':
                 break

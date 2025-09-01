@@ -56,12 +56,10 @@ def wait_for_section_continue(section_name):
     """Wait for user input between sections"""
     print(f"\n=== {section_name} SECTION COMPLETED ===")
     print("Press any key to continue to next section, or 'q' to quit: ", end='', flush=True)
-    
+
     try:
         choice = input().lower().strip()
-        if choice == 'q':
-            return 'quit'
-        return 'continue'
+        return 'quit' if choice == 'q' else 'continue'
     except KeyboardInterrupt:
         print("\nExiting...")
         return 'quit'
@@ -70,27 +68,27 @@ def wait_for_section_continue(section_name):
 def run_pattern_section(api, patterns, section_name):
     """Run a section of patterns with interactive controls"""
     print(f"\n=== {section_name.upper()} PATTERNS ===")
-    
+
     idx = 0
     while idx < len(patterns):
         pattern = patterns[idx]
         current_num = idx + 1
-        
+
         print(f"\nPlaying {section_name} {current_num} of {len(patterns)}")
         api.send_timed_batch(pattern)
         time.sleep(sleep_during)
-        
+
         action = wait_for_input(section_name, current_num, len(patterns))
-        
-        if action == 'repeat':
-            # Stay at same index to repeat
-            continue
-        elif action == 'next':
+
+        if action == 'next':
             # Move to next pattern
             idx += 1
         elif action == 'quit':
             return 'quit'
-    
+
+        elif action == 'repeat':
+            # Stay at same index to repeat
+            continue
     return 'completed'
 
 
