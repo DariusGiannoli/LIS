@@ -1,78 +1,45 @@
 from core.patterns import generate_coordinate_pattern, generate_static_pattern, generate_pulse_pattern    
-from core.shared import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, VELOCITY, cross_actuators, h_line_actuators, v_line_actuators, square_actuators, circle_actuators, l_actuators)
+from core.shared import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, VELOCITY, 
+                        cross_actuators, h_line_actuators, v_line_actuators, square_actuators, circle_actuators, l_actuators)
 from core.motion_actuators import square, circle, h_line, v_line, l, cross
 
+# Shape configuration: (actuators for static and pulse, actuators for motion
+SHAPE_CONFIGS = {
+    'cross': (cross_actuators, cross.get_big_cross),
+    'h_line': (h_line_actuators, h_line.get_big_h_line),
+    'v_line': (v_line_actuators, v_line.get_big_v_line),
+    'square': (square_actuators, square.get_big_square),
+    'circle': (circle_actuators, circle.get_big_circle),
+    'l_shape': (l_actuators, l.get_big_l)
+}
 
-def cross_pattern():
-    static = generate_static_pattern(cross_actuators, DUTY, FREQ, DURATION)
-    pulse = generate_pulse_pattern(cross_actuators, DUTY, FREQ, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)
-
-    motion_coords = cross.get_big_cross()
+def _create_shape_pattern(actuators, motion_method):
+    """Generic pattern creator for all shapes"""
+    static = generate_static_pattern(actuators, DUTY, FREQ, DURATION)
+    pulse = generate_pulse_pattern(actuators, DUTY, FREQ, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)
     motion = generate_coordinate_pattern(
-        coordinates=motion_coords,
-        velocity=VELOCITY,
-        intensity=DUTY,
-        freq=FREQ
-    )
-    
-    return static, pulse, motion
-
-def h_line_pattern(): 
-    static = generate_static_pattern(h_line_actuators, DUTY, FREQ, DURATION)
-    pulse = generate_pulse_pattern(h_line_actuators, DUTY, FREQ, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)
-    motion_coords = h_line.get_big_h_line()
-    motion = generate_coordinate_pattern(
-        coordinates=motion_coords,
+        coordinates=motion_method(),
         velocity=VELOCITY,
         intensity=DUTY,
         freq=FREQ
     )
     return static, pulse, motion
 
-def v_line_pattern():
-    static = generate_static_pattern(v_line_actuators, DUTY, FREQ, DURATION)
-    pulse = generate_pulse_pattern(v_line_actuators, DUTY, FREQ, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)
-    motion_coords = v_line.get_big_v_line()
-    motion = generate_coordinate_pattern(
-        coordinates=motion_coords,
-        velocity=VELOCITY,
-        intensity=DUTY,
-        freq=FREQ
-    )
-    return static, pulse, motion
+# Generate all pattern functions dynamically
+def _create_pattern_functions():
+    """Create pattern functions for all shapes"""
+    functions = {}
+    for shape_name, (actuators, motion_method) in SHAPE_CONFIGS.items():
+        functions[f"{shape_name}_pattern"] = lambda a=actuators, m=motion_method: _create_shape_pattern(a, m)
+    return functions
 
-def square_pattern(): 
-    static = generate_static_pattern(square_actuators, DUTY, FREQ, DURATION)
-    pulse = generate_pulse_pattern(square_actuators, DUTY, FREQ, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)
-    motion_coords = square.get_big_square()
-    motion = generate_coordinate_pattern(
-        coordinates=motion_coords,
-        velocity=VELOCITY,
-        intensity=DUTY,
-        freq=FREQ
-    )
-    return static, pulse, motion
+# Create pattern functions
+_pattern_functions = _create_pattern_functions()
 
-def circle_pattern(): 
-    static = generate_static_pattern(circle_actuators, DUTY, FREQ, DURATION)
-    pulse = generate_pulse_pattern(circle_actuators, DUTY, FREQ, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)
-    motion_coords = circle.get_big_circle()
-    motion = generate_coordinate_pattern(
-        coordinates=motion_coords,
-        velocity=VELOCITY,
-        intensity=DUTY,
-        freq=FREQ
-    )
-    return static, pulse, motion
-
-def l_shape_pattern(): 
-    static = generate_static_pattern(l_actuators, DUTY, FREQ, DURATION)
-    pulse = generate_pulse_pattern(l_actuators, DUTY, FREQ, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)
-    motion_coords = l.get_big_l()
-    motion = generate_coordinate_pattern(
-        coordinates=motion_coords,
-        velocity=VELOCITY,
-        intensity=DUTY,
-        freq=FREQ
-    )
-    return static, pulse, motion
+# Export pattern functions
+cross_pattern = _pattern_functions['cross_pattern']
+h_line_pattern = _pattern_functions['h_line_pattern'] 
+v_line_pattern = _pattern_functions['v_line_pattern']
+square_pattern = _pattern_functions['square_pattern']
+circle_pattern = _pattern_functions['circle_pattern']
+l_shape_pattern = _pattern_functions['l_shape_pattern']

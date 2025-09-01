@@ -194,7 +194,7 @@ class LocationStudyInterface:
             # Load horizontal pattern images (images/horizontal/H01.png to H12.png)
             for i in range(12):
                 try:
-                    img_path = f"images/horizontal/H{i+1:02d}.png"  # Format as H01, H02, etc.
+                    img_path = f"images/location/horizontal/H{i+1:02d}.png"  # Format as H01, H02, etc.
                     if os.path.exists(img_path):
                         img = Image.open(img_path)
                         img = img.resize((80, 80), Image.Resampling.LANCZOS)
@@ -208,7 +208,7 @@ class LocationStudyInterface:
             # Load vertical pattern images (images/vertical/V01.png to V12.png)
             for i in range(12):
                 try:
-                    img_path = f"images/vertical/V{i+1:02d}.png"  # Format as V01, V02, etc.
+                    img_path = f"images/location/vertical/V{i+1:02d}.png"  # Format as V01, V02, etc.
                     if os.path.exists(img_path):
                         img = Image.open(img_path)
                         img = img.resize((80, 80), Image.Resampling.LANCZOS)

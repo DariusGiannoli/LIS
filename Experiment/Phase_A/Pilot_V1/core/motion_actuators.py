@@ -17,7 +17,7 @@ class square:
                 (120,180), (90,180), (90,150), (90,120)]
 
 class triangle:
-
+    
     def get_big_triangle():
         return []
     
@@ -52,43 +52,13 @@ class cross:
 class circle:
     
     def get_big_circle():
-        """Big circle using full grid space"""
-        center_x, center_y = 90, 90
-        radius = 80
-        points = []
-        for i in range(16):
-            angle = 2 * math.pi * i / 16
-            x = center_x + radius * math.cos(angle)
-            y = center_y + radius * math.sin(angle)
-            points.append((x, y))
-        points.append(points[0])
-        return points
-    
+        return None
+
     def get_medium_circle():
-        """Medium circle using reduced grid space"""
-        center_x, center_y = 90, 90
-        radius = 50
-        points = []
-        for i in range(12):
-            angle = 2 * math.pi * i / 12
-            x = center_x + radius * math.cos(angle)
-            y = center_y + radius * math.sin(angle)
-            points.append((x, y))
-        points.append(points[0])
-        return points
+        return None
 
     def get_small_circle():
-        """Small circle in center of grid"""
-        center_x, center_y = 90, 90
-        radius = 30
-        points = []
-        for i in range(12):
-            angle = 2 * math.pi * i / 12
-            x = center_x + radius * math.cos(angle)
-            y = center_y + radius * math.sin(angle)
-            points.append((x, y))
-        points.append(points[0])
-        return points
+        return None
     
 class h_line: 
     

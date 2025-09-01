@@ -1,246 +1,111 @@
-from core.patterns import get_motion_engine
+from core.patterns import get_motion_engine, generate_static_pattern, generate_pulse_pattern, generate_coordinate_pattern
 from core.shared import LAYOUT_POSITIONS, DUTY, VELOCITY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES
-from core.patterns import generate_static_pattern, generate_pulse_pattern, generate_coordinate_pattern    
-from core.motion_actuators import *
 
+
+# tuples: (phantom_pair, direct_actuators, phantom_ratio, description)
 DIRECTION_CONFIGS = {
-    0: {
-        'phantom_pair': [],           
-        'direct_actuators': [5, 4, 10, 11],      
-        'phantom_ratio': 0.5,
-        'description': 'East (0°)'
-    },
-    30: {
-        'phantom_pair': [5, 10],          
-        'direct_actuators': [4],          
-        'phantom_ratio': 0.3,
-        'description': 'Northeast 30°'
-    },
-    45: {
-        'phantom_pair': [],         
-        'direct_actuators': [5, 3],          
-        'phantom_ratio': 0.4,
-        'description': 'Northeast 45°'
-    },
-    60: {
-        'phantom_pair': [5, 6],           
-        'direct_actuators': [2],      
-        'phantom_ratio': 0.3,
-        'description': 'Northeast 60°'
-    },
-    90: {
-        'phantom_pair': [],           
-        'direct_actuators': [1, 2, 5, 6],          
-        'phantom_ratio': 0.5,
-        'description': 'North (90°)'
-    },
-    120: {
-        'phantom_pair': [5, 6],           
-        'direct_actuators': [1],       
-        'phantom_ratio': 0.7,
-        'description': 'Northwest 120°'
-    },
-    135: {
-        'phantom_pair': [],           
-        'direct_actuators': [0, 6],          
-        'phantom_ratio': 0.6,
-        'description': 'Northwest 135°'
-    },
-    150: {
-        'phantom_pair': [6, 9],           
-        'direct_actuators': [7],          
-        'phantom_ratio': 0.3,
-        'description': 'Northwest 150°'
-    },
-    180: {
-        'phantom_pair': [],          
-        'direct_actuators': [6, 7, 8, 9],      
-        'phantom_ratio': 0.5,
-        'description': 'West (180°)'
-    },
-    210: {
-        'phantom_pair': [6, 9],
-        'direct_actuators': [8],
-        'phantom_ratio': 0.3,
-        'description': 'Southwest 210°'
-    },
-    225: {
-        'phantom_pair': [],          
-        'direct_actuators': [9, 15],        
-        'phantom_ratio': 0.5,
-        'description': 'Southwest 225°'
-    },
-    240: {
-        'phantom_pair': [9, 10],          
-        'direct_actuators': [14],      
-        'phantom_ratio': 0.3,
-        'description': 'Southwest 240°'
-    },
-    270: {
-        'phantom_pair': [],         
-        'direct_actuators': [9, 10, 13, 14],         
-        'phantom_ratio': 0.5,
-        'description': 'South (270°)'
-    },
-    300: {
-        'phantom_pair': [9, 10],        
-        'direct_actuators': [13],     
-        'phantom_ratio': 0.7,
-        'description': 'Southeast 300°'
-    },
-    315: {
-        'phantom_pair': [],         
-        'direct_actuators': [10, 12],         
-        'phantom_ratio': 0.5,
-        'description': 'Southeast 315°'
-    },
-    330: {
-        'phantom_pair': [5, 10],        
-        'direct_actuators': [11],         
-        'phantom_ratio': 0.7,
-        'description': 'Southeast 330°'
-    }
+    0: ([], [5, 4, 10, 11], 0.5, 'East (0°)'),
+    30: ([5, 10], [4], 0.3, 'Northeast 30°'),
+    45: ([], [5, 3], 0.4, 'Northeast 45°'),
+    60: ([5, 6], [2], 0.3, 'Northeast 60°'),
+    90: ([], [1, 2, 5, 6], 0.5, 'North (90°)'),
+    120: ([5, 6], [1], 0.7, 'Northwest 120°'),
+    135: ([], [0, 6], 0.6, 'Northwest 135°'),
+    150: ([6, 9], [7], 0.3, 'Northwest 150°'),
+    180: ([], [6, 7, 8, 9], 0.5, 'West (180°)'),
+    210: ([6, 9], [8], 0.3, 'Southwest 210°'),
+    225: ([], [9, 15], 0.5, 'Southwest 225°'),
+    240: ([9, 10], [14], 0.3, 'Southwest 240°'),
+    270: ([], [9, 10, 13, 14], 0.5, 'South (270°)'),
+    300: ([9, 10], [13], 0.7, 'Southeast 300°'),
+    315: ([], [10, 12], 0.5, 'Southeast 315°'),
+    330: ([5, 10], [11], 0.7, 'Southeast 330°')
 }
 
 def create_generalized_direction_pattern(angle_degrees, pattern_type, base_intensity=DUTY):
-    
     if angle_degrees not in DIRECTION_CONFIGS:
         raise ValueError(f"Angle {angle_degrees}° not configured. Available angles: {list(DIRECTION_CONFIGS.keys())}")
     
-    config = DIRECTION_CONFIGS[angle_degrees]
-    
-    # Get configuration
-    phantom_pair = config['phantom_pair']
-    direct_actuators = config['direct_actuators']
-    phantom_ratio = config['phantom_ratio']
-    description = config['description']
+    # Unpack configuration tuple
+    phantom_pair, direct_actuators, phantom_ratio, description = DIRECTION_CONFIGS[angle_degrees]
     
     print(f"\nCreating {description} pattern:")
-    print(f"  Phantom between actuators: {phantom_pair if phantom_pair else 'None (direct only)'}")
+    print(f"  Phantom between actuators: {phantom_pair or 'None (direct only)'}")
     print(f"  Direct activation: {direct_actuators}")
     
-    # Check if phantom is requested
-    if phantom_pair and len(phantom_pair) >= 2:
-        # PHANTOM + DIRECT MODE
+    # Initialize actuators and duties
+    all_actuators, all_duties = list(direct_actuators), [base_intensity] * len(direct_actuators)
+    
+    # Add phantom if configured
+    if len(phantom_pair) >= 2:
         engine = get_motion_engine()
-        print(f"  Phantom ratio: {phantom_ratio}")
+        pos_a, pos_b = LAYOUT_POSITIONS[phantom_pair[0]], LAYOUT_POSITIONS[phantom_pair[1]]
+        phantom_pos = (pos_a[0] + phantom_ratio * (pos_b[0] - pos_a[0]), 
+                      pos_a[1] + phantom_ratio * (pos_b[1] - pos_a[1]))
         
-        # Calculate phantom position
-        pos_a = LAYOUT_POSITIONS[phantom_pair[0]]
-        pos_b = LAYOUT_POSITIONS[phantom_pair[1]]
+        print(f"  Phantom ratio: {phantom_ratio}, position: {phantom_pos}")
         
-        phantom_x = pos_a[0] + phantom_ratio * (pos_b[0] - pos_a[0])
-        phantom_y = pos_a[1] + phantom_ratio * (pos_b[1] - pos_a[1])
-        phantom_pos = (phantom_x, phantom_y)
-        
-        print(f"  Phantom position: {phantom_pos}")
-        
-        # Create phantom sensation
-        phantom = engine.create_phantom(phantom_pos, 0.8)  # 80% intensity for phantom
-        
-        if not phantom:
-            print("  Warning: Could not create phantom sensation, falling back to direct only")
-            phantom_actuators = []
-            phantom_duties = []
-        else:
-            # Get phantom results
-            phantom_actuators = phantom['actuators']
-            phantom_intensities = phantom['intensities']
-            phantom_duties = [max(1, min(15, int(intensity * 15))) for intensity in phantom_intensities]
+        if phantom := engine.create_phantom(phantom_pos, 0.8):
+            phantom_duties = [max(1, min(15, int(intensity * 15))) for intensity in phantom['intensities']]
             
-            print(f"  Phantom actuators: {phantom_actuators}")
-            print(f"  Phantom duties: {phantom_duties}")
-        
-        # Combine phantom with direct activation
-        all_actuators = list(phantom_actuators)
-        all_duties = list(phantom_duties)
-        
-        # Add direct activation actuators
-        for actuator in direct_actuators:
-            if actuator not in phantom_actuators:
-                all_actuators.append(actuator)
-                all_duties.append(base_intensity)
-            else:
-                # If direct actuator is already in phantom, boost its intensity
-                idx = phantom_actuators.index(actuator)
-                all_duties[idx] = max(all_duties[idx], base_intensity)
+            # Merge phantom with direct actuators
+            for actuator, duty in zip(phantom['actuators'], phantom_duties):
+                if actuator in all_actuators:
+                    all_duties[all_actuators.index(actuator)] = max(all_duties[all_actuators.index(actuator)], duty)
+                else:
+                    all_actuators.append(actuator)
+                    all_duties.append(duty)
+            
+            print(f"  Phantom actuators: {phantom['actuators']}, duties: {phantom_duties}")
+        else:
+            print("  Warning: Could not create phantom sensation, using direct only")
     
-    else:
-        # DIRECT ONLY MODE - no phantom
-        print("  Using direct activation only (no phantom)")
-        all_actuators = list(direct_actuators)
-        all_duties = [base_intensity] * len(direct_actuators)
+    print(f"  Final actuators: {all_actuators}, duties: {all_duties}")
     
-    print(f"  Final actuators: {all_actuators}")
-    print(f"  Final duties: {all_duties}")
+    # Generate pattern based on type
+    pattern_generators = {
+        'static': lambda: generate_static_pattern(all_actuators, duty=all_duties, freq=FREQ, duration=DURATION),
+        'pulse': lambda: generate_pulse_pattern(all_actuators, duty=all_duties, freq=FREQ, 
+                                            pulse_duration=PULSE_DURATION, pause_duration=PAUSE_DURATION, num_pulses=NUM_PULSES)
+    }
     
-    # Generate pattern
-    if pattern_type == 'static':
-        return generate_static_pattern(all_actuators, duty=all_duties, freq=FREQ, duration=DURATION)
-    elif pattern_type == 'pulse':
-        return generate_pulse_pattern(all_actuators, duty=all_duties, freq=FREQ, pulse_duration=PULSE_DURATION, pause_duration=PAUSE_DURATION, num_pulses=NUM_PULSES)
-    else:
+    if pattern_type not in pattern_generators:
         raise ValueError(f"Pattern type {pattern_type} not supported")
-
-
-# Generate pattern functions for all configured angles
-def create_direction_pattern_functions():
-    """Dynamically create pattern functions for all configured angles"""
-    pattern_functions = {}
     
-    for angle in DIRECTION_CONFIGS.keys():
-        def make_pattern_function(angle_deg):
-            def pattern_function():
-                static = create_generalized_direction_pattern(angle_deg, 'static')
-                pulse = create_generalized_direction_pattern(angle_deg, 'pulse')
-                motion = static  # For now, motion is same as static
-                return static, pulse, motion
-            return pattern_function
-        
-        # Create function name
-        func_name = f"direction_{angle}_pattern"
-        pattern_functions[func_name] = make_pattern_function(angle)
-        pattern_functions[angle] = make_pattern_function(angle)  # Also store by angle number
-    
-    return pattern_functions
+    return pattern_generators[pattern_type]()
 
-# Create all pattern functions
-DIRECTION_PATTERN_FUNCTIONS = create_direction_pattern_functions()
+
+# Create pattern functions for all configured angles using dictionary comprehension
+DIRECTION_PATTERN_FUNCTIONS = {
+    **{f"direction_{angle}_pattern": lambda a=angle: (
+        create_generalized_direction_pattern(a, 'static'),
+        create_generalized_direction_pattern(a, 'pulse'), 
+        create_generalized_direction_pattern(a, 'static')  # motion same as static for now
+    ) for angle in DIRECTION_CONFIGS.keys()},
+    **{angle: lambda a=angle: (
+        create_generalized_direction_pattern(a, 'static'),
+        create_generalized_direction_pattern(a, 'pulse'),
+        create_generalized_direction_pattern(a, 'static')
+    ) for angle in DIRECTION_CONFIGS.keys()}
+}
 
 def get_all_direction_patterns():
     """Get all direction patterns organized by type"""
-    patterns = {
-        'static': {},
-        'pulse': {},
-        'motion': {}
+    return {
+        pattern_type: {f'{angle}_deg': DIRECTION_PATTERN_FUNCTIONS[angle]()[i] 
+                    for angle in DIRECTION_CONFIGS.keys()}
+        for i, pattern_type in enumerate(['static', 'pulse', 'motion'])
     }
-    
-    for angle in DIRECTION_CONFIGS.keys():
-        pattern_func = DIRECTION_PATTERN_FUNCTIONS[angle]
-        static, pulse, motion = pattern_func()
-        patterns['static'][f'{angle}_deg'] = static
-        patterns['pulse'][f'{angle}_deg'] = pulse
-        patterns['motion'][f'{angle}_deg'] = motion
-    
-    return patterns
 
-
-# Generate motion patterns
+# Generate motion patterns for specific angles (keeping original functionality)
 ANGLES = [0, 30, 45, 60, 90, 120, 135, 150, 180]
-direction_motions = {}
-for angle in ANGLES:
-    method = getattr(direction_patterns, f"get_{angle}", None)
-    if method:
-        coords = method()
-        # Filter only tuple coordinates (ignore ints)
-        coords = [c for c in coords if isinstance(c, tuple)]
-        direction_motions[angle] = generate_coordinate_pattern(
-            coordinates=coords,
-            velocity=VELOCITY,
-            intensity=DUTY,
-            freq=FREQ
-        )
+direction_motions = {
+    angle: generate_coordinate_pattern(
+        coordinates=[c for c in getattr(direction_patterns, f"get_{angle}", lambda: [])() 
+                    if isinstance(c, tuple)],
+        velocity=VELOCITY, intensity=DUTY, freq=FREQ
+    ) for angle in ANGLES 
+    if hasattr(direction_patterns, f"get_{angle}")
+}
     
 
-if __name__ == "__main__":
-    None
