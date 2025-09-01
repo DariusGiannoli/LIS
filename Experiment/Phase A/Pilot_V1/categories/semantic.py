@@ -1,5 +1,5 @@
 from core.patterns import generate_static_pattern, generate_pulse_pattern    
-from shared import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, cross_actuators, h_line_actuators, v_line_actuators, square_actuators, circle_actuators, l_actuators)
+from core.shared import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, cross_actuators, h_line_actuators, v_line_actuators, square_actuators, circle_actuators, l_actuators)
 
 def error(): #Cross
     return generate_static_pattern(cross_actuators, DUTY, FREQ, DURATION), generate_pulse_pattern(cross_actuators, DUTY, FREQ, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)

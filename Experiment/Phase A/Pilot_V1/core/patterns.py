@@ -1,7 +1,7 @@
 import math
 from typing import List, Tuple, Dict, Optional, Union
 from dataclasses import dataclass
-from shared import LAYOUT_POSITIONS, MOTION_PARAMS
+from core.shared import LAYOUT_POSITIONS, MOTION_PARAMS
 
 @dataclass
 class MotionCommand:

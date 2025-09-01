@@ -1,5 +1,5 @@
-from shared import get_4x4_grid_mapping
-from shared import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, VELOCITY)
+from core.shared import get_4x4_grid_mapping
+from core.shared import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, VELOCITY)
 
 from core.patterns import generate_static_pattern, generate_pulse_pattern, generate_coordinate_pattern
 

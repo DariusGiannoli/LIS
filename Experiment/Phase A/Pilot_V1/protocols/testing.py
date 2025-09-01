@@ -1,5 +1,5 @@
 from core.serial_api import SerialAPI
-from shared import (DUTY, FREQ)
+from core.shared import (DUTY, FREQ)
 
 duration = 2000
 

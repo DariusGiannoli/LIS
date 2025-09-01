@@ -3,7 +3,7 @@ from core.serial_api import SerialAPI
 from Categories.location import create_all_commands
 from Categories.shape import cross
 
-import shared as shared
+import core.shared as shared
 
 import time
 import random
