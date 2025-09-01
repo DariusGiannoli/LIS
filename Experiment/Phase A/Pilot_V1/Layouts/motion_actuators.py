@@ -139,3 +139,34 @@ def get_pattern_coordinates(pattern_name):
 def list_available_patterns():
     """Get list of all available pattern names"""
     return list(MOTION_PATTERNS.keys())
+
+
+class direction_patterns: 
+    
+    def get_0(): 
+        return [(90, 90), (120, 90), (150, 90), (180, 90)]
+
+    def get_30():
+        return [(90, 90), (120, 80), (150, 70), 4]
+    
+    def get_45(): 
+        return [(90, 90), 5, (150, 30), 3]
+
+    def get_60():
+        return [(90, 90), (100, 60), (110, 30), 2]
+    
+    def get_90(): 
+        return [(90, 90), (90, 60), (90, 30), (90, 0)]
+    
+    def get_120(): 
+        return [(90, 90), (80, 60), (70, 30), 1]
+    
+    def get_135(): 
+        return [(90, 90), (60, 60), (30, 30), 0]
+    
+    def get_150():
+        return [(90, 90), (60, 80), (30, 70), 7]
+    
+    def get_180(): 
+        return [(90, 90), (60, 90), (30, 90), (0, 90)]
+    

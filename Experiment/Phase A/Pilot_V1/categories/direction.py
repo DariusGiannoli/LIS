@@ -1,182 +1,250 @@
 import math
-from typing import List, Tuple
+from typing import List, Tuple, Dict, Optional
+from core.patterns import get_motion_engine
+from shared import LAYOUT_POSITIONS, DUTY, VELOCITY, FREQUENCY, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES
+from core.patterns import generate_static_pattern, generate_pulse_pattern, generate_coordinate_pattern    
+from Layouts.motion_actuators import *
 
-def generate_radial_circle_points(center: Tuple[float, float], radius: float, 
-                                num_circumference_points: int = 8, 
-                                points_per_line: int = 5) -> List[Tuple[float, float]]:
-    """
-    Generate points along radial lines from center to circumference points
+# Define directional pattern configurations
+# Each angle maps to: (phantom_actuators, direct_actuators, phantom_ratio)
+DIRECTION_CONFIGS = {
+    0: {
+        'phantom_pair': [],           
+        'direct_actuators': [5, 4, 10, 11],      
+        'phantom_ratio': 0.5,
+        'description': 'East (0°)'
+    },
+    30: {
+        'phantom_pair': [5, 10],          
+        'direct_actuators': [4],          
+        'phantom_ratio': 0.3,
+        'description': 'Northeast 30°'
+    },
+    45: {
+        'phantom_pair': [],         
+        'direct_actuators': [5, 3],          
+        'phantom_ratio': 0.4,
+        'description': 'Northeast 45°'
+    },
+    60: {
+        'phantom_pair': [5, 6],           
+        'direct_actuators': [2],      
+        'phantom_ratio': 0.3,
+        'description': 'Northeast 60°'
+    },
+    90: {
+        'phantom_pair': [],           
+        'direct_actuators': [1, 2, 5, 6],          
+        'phantom_ratio': 0.5,
+        'description': 'North (90°)'
+    },
+    120: {
+        'phantom_pair': [5, 6],           
+        'direct_actuators': [1],       
+        'phantom_ratio': 0.7,
+        'description': 'Northwest 120°'
+    },
+    135: {
+        'phantom_pair': [],           
+        'direct_actuators': [0, 6],          
+        'phantom_ratio': 0.6,
+        'description': 'Northwest 135°'
+    },
+    150: {
+        'phantom_pair': [6, 9],           
+        'direct_actuators': [7],          
+        'phantom_ratio': 0.3,
+        'description': 'Northwest 150°'
+    },
+    180: {
+        'phantom_pair': [],          
+        'direct_actuators': [6, 7, 8, 9],      
+        'phantom_ratio': 0.5,
+        'description': 'West (180°)'
+    },
+    210: {
+        'phantom_pair': [6, 9],
+        'direct_actuators': [8],
+        'phantom_ratio': 0.3,
+        'description': 'Southwest 210°'
+    },
+    225: {
+        'phantom_pair': [],          
+        'direct_actuators': [9, 15],        
+        'phantom_ratio': 0.5,
+        'description': 'Southwest 225°'
+    },
+    240: {
+        'phantom_pair': [9, 10],          
+        'direct_actuators': [14],      
+        'phantom_ratio': 0.3,
+        'description': 'Southwest 240°'
+    },
+    270: {
+        'phantom_pair': [],         
+        'direct_actuators': [9, 10, 13, 14],         
+        'phantom_ratio': 0.5,
+        'description': 'South (270°)'
+    },
+    300: {
+        'phantom_pair': [9, 10],        
+        'direct_actuators': [13],     
+        'phantom_ratio': 0.7,
+        'description': 'Southeast 300°'
+    },
+    315: {
+        'phantom_pair': [],         
+        'direct_actuators': [10, 12],         
+        'phantom_ratio': 0.5,
+        'description': 'Southeast 315°'
+    },
+    330: {
+        'phantom_pair': [5, 10],        
+        'direct_actuators': [11],         
+        'phantom_ratio': 0.7,
+        'description': 'Southeast 330°'
+    }
+}
+
+def create_generalized_direction_pattern(angle_degrees, pattern_type, base_intensity=DUTY):
     
-    Args:
-        center: (x, y) center of the circle
-        radius: Circle radius
-        num_circumference_points: Number of points on circumference (constant you can modify)
-        points_per_line: Number of points to sample along each radial line
-        
-    Returns:
-        List of (x, y) coordinates along all radial lines
-    """
+    if angle_degrees not in DIRECTION_CONFIGS:
+        raise ValueError(f"Angle {angle_degrees}° not configured. Available angles: {list(DIRECTION_CONFIGS.keys())}")
     
-    center_x, center_y = center
-    all_points = []
+    config = DIRECTION_CONFIGS[angle_degrees]
     
-    # Generate evenly spaced points on circumference
-    for i in range(num_circumference_points):
-        # Calculate angle for this circumference point
-        angle = 2 * math.pi * i / num_circumference_points
+    # Get configuration
+    phantom_pair = config['phantom_pair']
+    direct_actuators = config['direct_actuators']
+    phantom_ratio = config['phantom_ratio']
+    description = config['description']
+    
+    print(f"\nCreating {description} pattern:")
+    print(f"  Phantom between actuators: {phantom_pair if phantom_pair else 'None (direct only)'}")
+    print(f"  Direct activation: {direct_actuators}")
+    
+    # Check if phantom is requested
+    if phantom_pair and len(phantom_pair) >= 2:
+        # PHANTOM + DIRECT MODE
+        engine = get_motion_engine()
+        print(f"  Phantom ratio: {phantom_ratio}")
         
-        # Calculate circumference point
-        circumference_x = center_x + radius * math.cos(angle)
-        circumference_y = center_y + radius * math.sin(angle)
+        # Calculate phantom position
+        pos_a = LAYOUT_POSITIONS[phantom_pair[0]]
+        pos_b = LAYOUT_POSITIONS[phantom_pair[1]]
         
-        # Generate points along the line from center to circumference
-        for j in range(points_per_line):
-            # Parameter t goes from 0 (center) to 1 (circumference)
-            t = j / (points_per_line - 1) if points_per_line > 1 else 0
+        phantom_x = pos_a[0] + phantom_ratio * (pos_b[0] - pos_a[0])
+        phantom_y = pos_a[1] + phantom_ratio * (pos_b[1] - pos_a[1])
+        phantom_pos = (phantom_x, phantom_y)
+        
+        print(f"  Phantom position: {phantom_pos}")
+        
+        # Create phantom sensation
+        phantom = engine.create_phantom(phantom_pos, 0.8)  # 80% intensity for phantom
+        
+        if not phantom:
+            print("  Warning: Could not create phantom sensation, falling back to direct only")
+            phantom_actuators = []
+            phantom_duties = []
+        else:
+            # Get phantom results
+            phantom_actuators = phantom['actuators']
+            phantom_intensities = phantom['intensities']
+            phantom_duties = [max(1, min(15, int(intensity * 15))) for intensity in phantom_intensities]
             
-            # Interpolate along the line
-            point_x = center_x + t * (circumference_x - center_x)
-            point_y = center_y + t * (circumference_y - center_y)
-            
-            all_points.append((point_x, point_y))
+            print(f"  Phantom actuators: {phantom_actuators}")
+            print(f"  Phantom duties: {phantom_duties}")
+        
+        # Combine phantom with direct activation
+        all_actuators = list(phantom_actuators)
+        all_duties = list(phantom_duties)
+        
+        # Add direct activation actuators
+        for actuator in direct_actuators:
+            if actuator not in phantom_actuators:
+                all_actuators.append(actuator)
+                all_duties.append(base_intensity)
+            else:
+                # If direct actuator is already in phantom, boost its intensity
+                idx = phantom_actuators.index(actuator)
+                all_duties[idx] = max(all_duties[idx], base_intensity)
     
-    return all_points
+    else:
+        # DIRECT ONLY MODE - no phantom
+        print("  Using direct activation only (no phantom)")
+        all_actuators = list(direct_actuators)
+        all_duties = [base_intensity] * len(direct_actuators)
+    
+    print(f"  Final actuators: {all_actuators}")
+    print(f"  Final duties: {all_duties}")
+    
+    # Generate pattern
+    if pattern_type == 'static':
+        return generate_static_pattern(all_actuators, duty=all_duties, freq=FREQUENCY, duration=DURATION)
+    elif pattern_type == 'pulse':
+        return generate_pulse_pattern(all_actuators, duty=all_duties, freq=FREQUENCY, pulse_duration=PULSE_DURATION, pause_duration=PAUSE_DURATION, num_pulses=NUM_PULSES)
+    else:
+        raise ValueError(f"Pattern type {pattern_type} not supported")
 
-def generate_radial_circle_lines(center: Tuple[float, float], radius: float,
-                                num_lines: int = 8,
-                                points_per_line: int = 5) -> List[List[Tuple[float, float]]]:
-    """
-    Generate radial lines as separate lists (alternative organization)
-    
-    Returns:
-        List of lines, where each line is a list of (x, y) coordinates
-    """
-    
-    center_x, center_y = center
-    lines = []
-    
-    for i in range(num_lines):
-        # Calculate angle for this line
-        angle = 2 * math.pi * i / num_lines
-        
-        # Calculate endpoint on circumference
-        end_x = center_x + radius * math.cos(angle)
-        end_y = center_y + radius * math.sin(angle)
-        
-        # Generate points along this radial line
-        line_points = []
-        for j in range(points_per_line):
-            t = j / (points_per_line - 1) if points_per_line > 1 else 0
-            
-            point_x = center_x + t * (end_x - center_x)
-            point_y = center_y + t * (end_y - center_y)
-            
-            line_points.append((point_x, point_y))
-        
-        lines.append(line_points)
-    
-    return lines
 
-def generate_expanding_circle(center: Tuple[float, float], max_radius: float,
-                            num_circumference_points: int = 12,
-                            num_radius_steps: int = 5) -> List[Tuple[float, float]]:
-    """
-    Generate expanding circle pattern - points at different radii
+# Generate pattern functions for all configured angles
+def create_direction_pattern_functions():
+    """Dynamically create pattern functions for all configured angles"""
+    pattern_functions = {}
     
-    Args:
-        center: (x, y) center of the circle
-        max_radius: Maximum radius
-        num_circumference_points: Points around circumference
-        num_radius_steps: Number of concentric circles
+    for angle in DIRECTION_CONFIGS.keys():
+        def make_pattern_function(angle_deg):
+            def pattern_function():
+                static = create_generalized_direction_pattern(angle_deg, 'static')
+                pulse = create_generalized_direction_pattern(angle_deg, 'pulse')
+                motion = static  # For now, motion is same as static
+                return static, pulse, motion
+            return pattern_function
         
-    Returns:
-        List of (x, y) coordinates forming expanding circles
-    """
+        # Create function name
+        func_name = f"direction_{angle}_pattern"
+        pattern_functions[func_name] = make_pattern_function(angle)
+        pattern_functions[angle] = make_pattern_function(angle)  # Also store by angle number
     
-    center_x, center_y = center
-    all_points = []
-    
-    # Start from center
-    all_points.append((center_x, center_y))
-    
-    # Generate concentric circles
-    for radius_step in range(1, num_radius_steps + 1):
-        current_radius = (radius_step / num_radius_steps) * max_radius
-        
-        # Generate points on this circle
-        for i in range(num_circumference_points):
-            angle = 2 * math.pi * i / num_circumference_points
-            
-            point_x = center_x + current_radius * math.cos(angle)
-            point_y = center_y + current_radius * math.sin(angle)
-            
-            all_points.append((point_x, point_y))
-    
-    return all_points
+    return pattern_functions
 
-def generate_spiral_outward(center: Tuple[float, float], max_radius: float,
-                        total_points: int = 50) -> List[Tuple[float, float]]:
-    """
-    Generate spiral pattern from center outward
-    
-    Args:
-        center: (x, y) center point
-        max_radius: Maximum radius to reach
-        total_points: Total number of points in spiral
-        
-    Returns:
-        List of (x, y) coordinates forming spiral
-    """
-    
-    center_x, center_y = center
-    points = []
-    
-    for i in range(total_points):
-        # Parameter t goes from 0 to 1
-        t = i / (total_points - 1)
-        
-        # Radius grows linearly
-        radius = t * max_radius
-        
-        # Angle creates spiral (multiple rotations)
-        angle = 4 * math.pi * t  # 2 full rotations
-        
-        point_x = center_x + radius * math.cos(angle)
-        point_y = center_y + radius * math.sin(angle)
-        
-        points.append((point_x, point_y))
-    
-    return points
+# Create all pattern functions
+DIRECTION_PATTERN_FUNCTIONS = create_direction_pattern_functions()
 
-# Configuration constants (modify these as needed)
-NUM_CIRCUMFERENCE_POINTS = 8  # Number of radial lines
-POINTS_PER_LINE = 5           # Points along each line
-DEFAULT_RADIUS = 60           # Default radius
-DEFAULT_CENTER = (90, 90)     # Default center for 4x4 grid
+def get_all_direction_patterns():
+    """Get all direction patterns organized by type"""
+    patterns = {
+        'static': {},
+        'pulse': {},
+        'motion': {}
+    }
+    
+    for angle in DIRECTION_CONFIGS.keys():
+        pattern_func = DIRECTION_PATTERN_FUNCTIONS[angle]
+        static, pulse, motion = pattern_func()
+        patterns['static'][f'{angle}_deg'] = static
+        patterns['pulse'][f'{angle}_deg'] = pulse
+        patterns['motion'][f'{angle}_deg'] = motion
+    
+    return patterns
 
-# Example usage functions
-def create_radial_pattern_for_tactile():
-    """Create radial pattern suitable for your tactile system"""
-    return generate_radial_circle_points(
-        center=DEFAULT_CENTER,
-        radius=DEFAULT_RADIUS, 
-        num_circumference_points=NUM_CIRCUMFERENCE_POINTS,
-        points_per_line=POINTS_PER_LINE
-    )
 
-def create_expanding_pattern_for_tactile():
-    """Create expanding circle pattern"""
-    return generate_expanding_circle(
-        center=DEFAULT_CENTER,
-        max_radius=DEFAULT_RADIUS,
-        num_circumference_points=12,
-        num_radius_steps=4
-    )
+# Generate motion patterns
+ANGLES = [0, 30, 45, 60, 90, 120, 135, 150, 180]
+direction_motions = {}
+for angle in ANGLES:
+    method = getattr(direction_patterns, f"get_{angle}", None)
+    if method:
+        coords = method()
+        # Filter only tuple coordinates (ignore ints)
+        coords = [c for c in coords if isinstance(c, tuple)]
+        direction_motions[angle] = generate_coordinate_pattern(
+            coordinates=coords,
+            velocity=VELOCITY,
+            intensity=DUTY,
+            freq=FREQUENCY
+        )
+    
 
-def create_spiral_pattern_for_tactile():
-    """Create spiral pattern"""
-    return generate_spiral_outward(
-        center=DEFAULT_CENTER,
-        max_radius=DEFAULT_RADIUS,
-        total_points=30
-    )
+if __name__ == "__main__":
+    None
