@@ -17,3 +17,5 @@ venv/
 *.tmp
 
 *.waveform_library
+
+Experiment/Phase_A/interface/images/
