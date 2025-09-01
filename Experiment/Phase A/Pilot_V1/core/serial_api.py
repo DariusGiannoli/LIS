@@ -11,8 +11,8 @@ class SerialAPI:
 
     def create_command(self, addr, duty, freq, start_or_stop, delay_ms=0, wave=0):
         # Split address into serial group and local address
-        serial_group = addr // 16  # 0-7 for addresses 0-127
-        serial_addr = addr % 16  # 0-15 within each group
+        serial_group = addr // 8  # 0-7 for addresses 0-127
+        serial_addr = addr % 8  # 0-15 within each group
         
         # Byte 1: [serial_group(4)] [reserved(2)] [start_or_stop(1)]
         byte1 = (serial_group << 2) | (start_or_stop & 0x01)

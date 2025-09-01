@@ -1,7 +1,7 @@
 import math
 from typing import List, Tuple, Dict, Optional
 from core.patterns import get_motion_engine
-from shared import LAYOUT_POSITIONS, DUTY, VELOCITY, FREQUENCY, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES
+from shared import LAYOUT_POSITIONS, DUTY, VELOCITY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES
 from core.patterns import generate_static_pattern, generate_pulse_pattern, generate_coordinate_pattern    
 from Layouts.motion_actuators import *
 
@@ -180,9 +180,9 @@ def create_generalized_direction_pattern(angle_degrees, pattern_type, base_inten
     
     # Generate pattern
     if pattern_type == 'static':
-        return generate_static_pattern(all_actuators, duty=all_duties, freq=FREQUENCY, duration=DURATION)
+        return generate_static_pattern(all_actuators, duty=all_duties, freq=FREQ, duration=DURATION)
     elif pattern_type == 'pulse':
-        return generate_pulse_pattern(all_actuators, duty=all_duties, freq=FREQUENCY, pulse_duration=PULSE_DURATION, pause_duration=PAUSE_DURATION, num_pulses=NUM_PULSES)
+        return generate_pulse_pattern(all_actuators, duty=all_duties, freq=FREQ, pulse_duration=PULSE_DURATION, pause_duration=PAUSE_DURATION, num_pulses=NUM_PULSES)
     else:
         raise ValueError(f"Pattern type {pattern_type} not supported")
 
@@ -242,7 +242,7 @@ for angle in ANGLES:
             coordinates=coords,
             velocity=VELOCITY,
             intensity=DUTY,
-            freq=FREQUENCY
+            freq=FREQ
         )
     
 
