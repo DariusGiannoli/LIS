@@ -33,6 +33,11 @@ class LocationStudyInterface:
         self.root.title("Location Study Interface")
         self.root.geometry("1200x800")
         self.root.configure(bg='white')
+        style = ttk.Style(self.root)
+        style.theme_use("clam")
+        style.configure("Big.TButton", font=("Segoe UI", 16, "bold"), padding=10, foreground="#222", background="#e0e0e0")
+        style.configure("TLabel", font=("Segoe UI", 12), foreground="#222")
+        style.configure("TEntry", font=("Segoe UI", 12))
         
         # Study data
         self.api = SerialAPI()
@@ -56,6 +61,7 @@ class LocationStudyInterface:
         self.pattern_end_time = None
         self.current_patterns = None
         self.current_pattern_name = None
+        self.repeat_used = False
         
         # Results storage
         self.results = []
@@ -141,43 +147,47 @@ class LocationStudyInterface:
         # Answer selection frame
         self.answer_frame = ttk.Frame(main_frame)
         self.answer_frame.pack(fill=tk.BOTH, expand=True)
-        
         # Create grid for answer buttons
         self.answer_grid = ttk.Frame(self.answer_frame)
         self.answer_grid.pack(expand=True)
-        
-        # Control buttons frame
+
         control_frame = ttk.Frame(main_frame)
         control_frame.pack(fill=tk.X, pady=(20, 0))
-        
+
         # Left side - Pattern control buttons
         pattern_control_frame = ttk.Frame(control_frame)
         pattern_control_frame.pack(side=tk.LEFT)
-        
+
         self.play_button = ttk.Button(
-            pattern_control_frame, text="Play Pattern", command=self.play_current_pattern, state=tk.DISABLED
+            pattern_control_frame, text="Play Pattern", command=self.play_current_pattern, state=tk.DISABLED,
+            width=16, style="Big.TButton"
         )
         self.play_button.pack(side=tk.LEFT, padx=5)
-        
+
         self.repeat_button = ttk.Button(
-            pattern_control_frame, text="Repeat (R)", command=self.repeat_pattern, state=tk.DISABLED
+            pattern_control_frame, text="Repeat (R)", command=self.repeat_pattern, state=tk.DISABLED,
+            width=16, style="Big.TButton"
         )
         self.repeat_button.pack(side=tk.LEFT, padx=5)
-        
+
         self.skip_button = ttk.Button(
-            pattern_control_frame, text="Skip (N)", command=self.skip_pattern, state=tk.DISABLED
+            pattern_control_frame, text="Skip (N)", command=self.skip_pattern, state=tk.DISABLED,
+            width=16, style="Big.TButton"
         )
         self.skip_button.pack(side=tk.LEFT, padx=5)
-        
+
         # Right side - Study control buttons
         study_control_frame = ttk.Frame(control_frame)
         study_control_frame.pack(side=tk.RIGHT)
-        
+
         self.save_button = ttk.Button(
-            study_control_frame, text="Save Results", command=self.save_results, state=tk.DISABLED
+            study_control_frame, text="Save Results", command=self.save_results, state=tk.DISABLED,
+            width=16, style="Big.TButton"
         )
         self.save_button.pack(side=tk.RIGHT, padx=5)
-        
+
+        style = ttk.Style(self.root)
+        style.configure("Big.TButton", font=("Arial", 16, "bold"), padding=10)
         # Load images
         self.load_pattern_images()
         
@@ -197,11 +207,11 @@ class LocationStudyInterface:
                     img_path = f"images/location/horizontal/H{i+1:02d}.png"  # Format as H01, H02, etc.
                     if os.path.exists(img_path):
                         img = Image.open(img_path)
-                        img = img.resize((80, 80), Image.Resampling.LANCZOS)
+                        img = img.resize((140, 140), Image.Resampling.LANCZOS)
                         self.horizontal_images.append(ImageTk.PhotoImage(img))
                     else:
                         # Create placeholder image if file doesn't exist
-                        self.horizontal_images.append(self.create_placeholder_image(f"H{i+1:02d}", (80, 80)))
+                        self.horizontal_images.append(self.create_placeholder_image(f"H{i+1:02d}", (140, 140)))
                 except Exception as e:
                     self.horizontal_images.append(self.create_placeholder_image(f"H{i+1:02d}", (80, 80)))
             
@@ -211,11 +221,11 @@ class LocationStudyInterface:
                     img_path = f"images/location/vertical/V{i+1:02d}.png"  # Format as V01, V02, etc.
                     if os.path.exists(img_path):
                         img = Image.open(img_path)
-                        img = img.resize((80, 80), Image.Resampling.LANCZOS)
+                        img = img.resize((140, 140), Image.Resampling.LANCZOS)
                         self.vertical_images.append(ImageTk.PhotoImage(img))
                     else:
                         # Create placeholder image if file doesn't exist
-                        self.vertical_images.append(self.create_placeholder_image(f"V{i+1:02d}", (80, 80)))
+                        self.vertical_images.append(self.create_placeholder_image(f"V{i+1:02d}", (140, 140)))
                 except Exception as e:
                     self.vertical_images.append(self.create_placeholder_image(f"V{i+1:02d}", (80, 80)))
                     
@@ -348,12 +358,12 @@ class LocationStudyInterface:
             messagebox.showerror("Connection", "No serial ports found.")
             return
         
-        if len(ports) < 3:
-            messagebox.showerror("Connection", f"Need at least 3 ports, only found {len(ports)}.")
+        if len(ports) < 1:
+            messagebox.showerror("Connection", f"Need at least 1 port, only found {len(ports)}.")
             return
         
         # Connect explicitly to port index 2 (third port)
-        connected = self.api.connect(ports[2])
+        connected = self.api.connect(ports[0])
         
         if connected:
             self.participant_id = self.participant_entry.get().strip()
@@ -407,10 +417,11 @@ Click 'Play Pattern' to begin."""
     
     def load_current_pattern(self):
         """Load the current pattern from the sequence"""
+        # Ensure play button is disabled at start of pattern load
+        self.play_button.config(state=tk.DISABLED)
         if self.current_sequence_index >= len(self.study_sequence):
             self.study_complete()
             return
-            
         current = self.study_sequence[self.current_sequence_index]
         self.current_section = current['section_name']
         self.current_pattern_type = current['pattern_type']
@@ -424,9 +435,7 @@ Click 'Play Pattern' to begin."""
         self.progress_label.config(text=f"Progress: {progress}/{total}")
         self.progress_bar.config(value=progress)
         
-        self.instruction_text.config(
-            text=f"Ready: {self.current_pattern_name}\nClick 'Play Pattern', then use Repeat/Skip buttons or select your answer."
-        )
+        
         
         # Setup answer grid for current pattern type
         self.setup_answer_grid()
@@ -435,6 +444,7 @@ Click 'Play Pattern' to begin."""
         self.play_button.config(state=tk.NORMAL)
         self.repeat_button.config(state=tk.DISABLED)
         self.skip_button.config(state=tk.DISABLED)
+        self.repeat_used = False
     
     def setup_answer_grid(self):
         """Setup the answer grid based on current pattern type"""
@@ -479,23 +489,25 @@ Click 'Play Pattern' to begin."""
         """Play the current tactile pattern"""
         if self.current_sequence_index >= len(self.study_sequence):
             return
-            
+
+        # Always disable Play button immediately
+        self.play_button.config(state=tk.DISABLED)
+
         current = self.study_sequence[self.current_sequence_index]
         pattern_data = current['pattern_data']
-        
+
         # Record pattern start time
         self.pattern_start_time = time.time()
-        
+
         # Update UI
         self.instruction_text.config(text=f"Playing: {self.current_pattern_name}...")
-        self.play_button.config(state=tk.DISABLED)
         self.repeat_button.config(state=tk.DISABLED)
         self.skip_button.config(state=tk.DISABLED)
-        
+
         # Disable answer buttons
         for button in self.image_buttons:
             button.config(state=tk.DISABLED, bg='lightgray')
-        
+
         # Play pattern in separate thread
         def play_pattern():
             try:
@@ -505,7 +517,7 @@ Click 'Play Pattern' to begin."""
                     max_delay = max(cmd.get('delay_ms', 0) for cmd in pattern_data)
                     # Add a small buffer to ensure pattern completes
                     time.sleep((max_delay + 500) / 1000.0)  # Convert to seconds
-                    
+
                     # Pattern finished - record end time and enable answers
                     self.pattern_end_time = time.time()
                     self.root.after(0, self.pattern_finished)
@@ -515,7 +527,7 @@ Click 'Play Pattern' to begin."""
             except Exception as e:
                 self.root.after(0, lambda: messagebox.showerror("Error", f"Pattern playback error: {e}"))
                 self.root.after(0, self._reset_buttons_after_error)
-        
+
         Thread(target=play_pattern, daemon=True).start()
     
     def _reset_buttons_after_error(self):
@@ -538,14 +550,20 @@ Click 'Play Pattern' to begin."""
         self.instruction_text.config(
             text=f"Pattern complete! Click on the {self.current_pattern_type} pattern you felt, or use Repeat/Skip buttons."
         )
-        
+
         # Enable answer buttons
         for button in self.image_buttons:
             button.config(state=tk.NORMAL, bg='white')
-            
+
         # Enable repeat and skip buttons
-        self.repeat_button.config(state=tk.NORMAL)
+        if not self.repeat_used:
+            self.repeat_button.config(state=tk.NORMAL)
+        else:
+            self.repeat_button.config(state=tk.DISABLED)
         self.skip_button.config(state=tk.NORMAL)
+
+        # Only now re-enable Play button
+        self.play_button.config(state=tk.NORMAL)
     
     def answer_selected(self, selected_index):
         """Handle answer selection"""
@@ -573,7 +591,8 @@ Click 'Play Pattern' to begin."""
             'pattern_duration_ms': round((self.pattern_end_time - self.pattern_start_time) * 1000, 2),
             'randomized_position': current['randomized_position'] + 1,  # Position in randomized sequence
             'horizontal_random_order': self.horizontal_random_order,  # For reference
-            'vertical_random_order': self.vertical_random_order  # For reference
+            'vertical_random_order': self.vertical_random_order,  # For reference
+            'repeat_used': self.repeat_used
         }
         
         self.results.append(result)
@@ -597,34 +616,38 @@ Click 'Play Pattern' to begin."""
             button.config(state=tk.DISABLED)
         self.repeat_button.config(state=tk.DISABLED)
         self.skip_button.config(state=tk.DISABLED)
+        self.play_button.config(state=tk.DISABLED)  # <--- Ensure play button is disabled during feedback/transition
         
         # Auto-advance after showing feedback for 3 seconds
         self.root.after(3000, self.next_pattern)
     
     def next_pattern(self):
         """Move to the next pattern"""
+        self.play_button.config(state=tk.DISABLED)  # <--- Ensure play button is disabled during transition
         self.current_sequence_index += 1
-        
         if self.current_sequence_index >= len(self.study_sequence):
             self.study_complete()
         else:
-            self.load_current_pattern()
+            # Delay loading next pattern to ensure UI updates first
+            self.root.after(100, self.load_current_pattern)
     
     def repeat_pattern(self):
-        """Repeat the current pattern (same as 'r' key in console version)"""
+        """Repeat the current pattern only once, log repeat usage"""
+        if self.repeat_used:
+            return
+        self.repeat_used = True
+        self.repeat_button.config(state=tk.DISABLED)
         if hasattr(self, 'pattern_end_time') and self.pattern_end_time:
-            # Pattern has been played, replay it
             self.instruction_text.config(text="Repeating pattern...")
             self.root.after(500, self.play_current_pattern)  # Small delay for visual feedback
         else:
-            # Pattern hasn't been played yet, just play it
             self.play_current_pattern()
     
     def skip_pattern(self):
         """Skip to next pattern without recording answer (same as 'n' key in console version)"""
         # Show visual feedback
         self.instruction_text.config(text="Skipping pattern...")
-        
+        self.play_button.config(state=tk.DISABLED)  # <--- Ensure play button is disabled during skip/transition
         # Record that the pattern was skipped
         if self.current_sequence_index < len(self.study_sequence):
             current = self.study_sequence[self.current_sequence_index]
@@ -644,7 +667,6 @@ Click 'Play Pattern' to begin."""
                 'vertical_random_order': getattr(self, 'vertical_random_order', [])
             }
             self.results.append(skip_result)
-        
         # Move to next pattern after brief delay
         self.root.after(500, self.next_pattern)
     
