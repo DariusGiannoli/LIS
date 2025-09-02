@@ -1,5 +1,5 @@
 from core.patterns import generate_coordinate_pattern, generate_static_pattern, generate_pulse_pattern    
-from core.shared import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, VELOCITY, 
+from core.shared import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, 
                         cross_actuators, h_line_actuators, v_line_actuators, square_actuators, circle_actuators, l_actuators)
 from core.motion_actuators import square, circle, h_line, v_line, l, cross
 
@@ -19,7 +19,6 @@ def _create_shape_pattern(actuators, motion_method):
     pulse = generate_pulse_pattern(actuators, DUTY, FREQ, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)
     motion = generate_coordinate_pattern(
         coordinates=motion_method(),
-        velocity=VELOCITY,
         intensity=DUTY,
         freq=FREQ
     )

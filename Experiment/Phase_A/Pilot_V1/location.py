@@ -12,11 +12,11 @@ from threading import Thread
 
 ######
 # Add root directory to path
-root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+root_dir = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, root_dir)
 from categories.location import create_all_commands_with_motion
 from core.serial_api import SerialAPI
-from core.shared import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, VELOCITY)
+from core.shared import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)
 
 class LocationStudyInterface:
     """
@@ -37,7 +37,7 @@ class LocationStudyInterface:
         # Study data
         self.api = SerialAPI()
         self.all_commands = create_all_commands_with_motion(
-            DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, VELOCITY
+            DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES
         )
         
         # Pattern arrays

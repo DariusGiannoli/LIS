@@ -43,7 +43,6 @@ def _create_orientation_patterns(orientation, pattern_type, **params):
     if pattern_type == 'motion':
         return [generate_coordinate_pattern(
             coordinates=coords,
-            velocity=params['VELOCITY'],
             intensity=params['DUTY'],
             freq=params['FREQ']
         ) for coords in config['motion_coords']()]
@@ -60,7 +59,7 @@ def _create_orientation_patterns(orientation, pattern_type, **params):
                         params['PULSE_DURATION'], params['PAUSE_DURATION'], params['NUM_PULSES'])
                 for devices in config['patterns']()]
 
-def create_all_commands_with_motion(DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, VELOCITY):
+def create_all_commands_with_motion(DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES):
     """Create ALL commands including motion patterns"""
     # Create static commands
     static_params = {'DUTY': DUTY, 'FREQ': FREQ, 'DURATION': DURATION}
@@ -78,7 +77,7 @@ def create_all_commands_with_motion(DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_
     }
 
     # Create motion commands
-    motion_params = {'DUTY': DUTY, 'FREQ': FREQ, 'VELOCITY': VELOCITY}
+    motion_params = {'DUTY': DUTY, 'FREQ': FREQ}
     motion_commands = {
         'motion_horizontal': _create_orientation_patterns('horizontal', 'motion', **motion_params),
         'motion_vertical': _create_orientation_patterns('vertical', 'motion', **motion_params)

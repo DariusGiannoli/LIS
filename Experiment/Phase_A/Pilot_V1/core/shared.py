@@ -14,18 +14,17 @@ LAYOUT_POSITIONS = {
 }
 
 #Common parameters
-DUTY = 8
+DUTY = 10
 FREQ = 6
 DURATION = 1000
-PULSE_DURATION = 200
-PAUSE_DURATION = 200
+PULSE_DURATION = 100
+PAUSE_DURATION = 100
 NUM_PULSES = 5
-VELOCITY = 20
 
 # Actuator mappings
 cross_actuators = [0, 5, 10, 15, 3, 6, 9, 12]
 h_line_actuators = [4, 5, 6, 7]
-v_line_actuators = [1, 5, 9, 13]
+v_line_actuators = [1, 6, 9, 14]
 square_actuators = [0, 1, 2, 3, 4, 7, 11, 15, 14, 13, 12, 8, 4]
 circle_actuators = [1, 2, 7, 11, 13, 14, 4, 8]
 l_actuators = [0, 4, 8, 12, 13, 14, 15]

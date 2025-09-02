@@ -52,7 +52,7 @@ class cross:
 class circle:
     
     def get_big_circle():
-        return None
+        return [1, (90, 0), 2, (150, 30), 4, (180, 90), 11, (150, 150), 13, (90, 180), 14, (30, 150), 8, (0, 90), 4, (30,30), 1]
 
     def get_medium_circle():
         return None

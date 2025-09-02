@@ -1,6 +1,6 @@
+from core.motion_actuators import direction_patterns
 from core.patterns import get_motion_engine, generate_static_pattern, generate_pulse_pattern, generate_coordinate_pattern
-from core.shared import LAYOUT_POSITIONS, DUTY, VELOCITY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES
-
+from core.shared import LAYOUT_POSITIONS, DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES
 
 # tuples: (phantom_pair, direct_actuators, phantom_ratio, description)
 DIRECTION_CONFIGS = {
@@ -103,9 +103,7 @@ direction_motions = {
     angle: generate_coordinate_pattern(
         coordinates=[c for c in getattr(direction_patterns, f"get_{angle}", lambda: [])() 
                     if isinstance(c, tuple)],
-        velocity=VELOCITY, intensity=DUTY, freq=FREQ
+        intensity=DUTY, freq=FREQ
     ) for angle in ANGLES 
     if hasattr(direction_patterns, f"get_{angle}")
 }
-    
-

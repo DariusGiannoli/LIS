@@ -1,7 +1,7 @@
 import math
 from typing import List, Tuple, Dict, Optional, Union
 from dataclasses import dataclass
-from core.shared import LAYOUT_POSITIONS, MOTION_PARAMS, FREQ, DURATION, DUTY, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, VELOCITY
+from core.shared import LAYOUT_POSITIONS, MOTION_PARAMS, FREQ, DURATION, DUTY, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES
 
 @dataclass
 class MotionCommand:
@@ -48,13 +48,14 @@ class MotionEngine:
             # Use provided distances but ensure minimum distance
             distances = [max(d, 0.1) for d in distances]
         
-        # Park et al. energy model: Ai = √(1/di / Σ(1/dj)) × Av
+        # Park et al. energy model reversed: Ai = Av / √(1/di / Σ(1/dj))
+        # This ensures phantom feels like desired_intensity, not weaker
         sum_inv_distances = sum(1/d for d in distances)
         
         intensities = []
         for dist in distances:
             intensity_factor = math.sqrt((1/dist) / sum_inv_distances)
-            intensity = intensity_factor * desired_intensity
+            intensity = desired_intensity / intensity_factor  # Reverse calculation
             intensities.append(min(1.0, max(0.0, intensity)))
         
         return intensities
@@ -89,7 +90,7 @@ class MotionEngine:
             'intensities': intensities
         }
     
-    def generate_motion_commands(self, trajectory, velocity=60.0, intensity=0.8, duration=0.06):
+    def generate_motion_commands(self, trajectory, intensity=0.8, duration=0.06):
         if len(trajectory) < 2:
             return []
         
@@ -116,8 +117,13 @@ class MotionEngine:
         
         return commands
 
-def generate_coordinate_pattern(coordinates, velocity=VELOCITY, intensity=DUTY, freq=FREQ, duration=0.06):
+def generate_coordinate_pattern(coordinates, intensity=DUTY, freq=FREQ, duration=0.06):
 
+    # Check if coordinates is None or empty
+    if not coordinates:
+        print("Warning: No coordinates provided, returning empty pattern")
+        return []
+    
     # Check if this is all device addresses (simple sequential motion)
     if all(isinstance(item, int) for item in coordinates):
         # This is a simple sequence of device addresses like [0, 1, 2, 3]
@@ -135,7 +141,6 @@ def generate_coordinate_pattern(coordinates, velocity=VELOCITY, intensity=DUTY, 
     # Mixed coordinates or pure coordinates - use complex motion system
     return generate_motion_pattern(
         devices=coordinates,
-        velocity=velocity,
         intensity=intensity,
         freq=freq,
         duration=duration
@@ -241,7 +246,7 @@ def generate_pulse_pattern(devices, duty=DUTY, freq=FREQ, pulse_duration=PULSE_D
         )
     return commands
 
-def generate_motion_pattern(devices, velocity=VELOCITY, intensity=DUTY, freq=FREQ, duration=0.06, **kwargs):
+def generate_motion_pattern(devices, intensity=DUTY, freq=FREQ, duration=0.06, **kwargs):
     """
     Generate motion pattern using the exact devices/coordinates provided.
     
@@ -250,7 +255,6 @@ def generate_motion_pattern(devices, velocity=VELOCITY, intensity=DUTY, freq=FRE
                 - List of device addresses: [0, 1, 2, 3]
                 - Mixed list of addresses and coordinates: [0, (30,0), 1, (60,0)]
                 - Pure coordinates: [(30,0), (60,0), (90,0)]
-        velocity: Motion velocity (affects timing between points)
         intensity: Vibration intensity (1-15)
         freq: Vibration frequency
         duration: Duration of each vibration point in seconds
@@ -275,7 +279,6 @@ def generate_motion_pattern(devices, velocity=VELOCITY, intensity=DUTY, freq=FRE
     # Generate motion commands
     motion_commands = engine.generate_motion_commands(
         trajectory,
-        velocity=velocity,
         intensity=intensity / 15.0,  # Convert to 0-1 scale
         duration=duration
     )
