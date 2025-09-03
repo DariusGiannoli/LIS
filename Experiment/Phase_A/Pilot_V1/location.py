@@ -132,17 +132,7 @@ class LocationStudyInterface:
         self.progress_bar = ttk.Progressbar(progress_frame, length=400, mode='determinate')
         self.progress_bar.pack(pady=5)
         
-        # Instructions frame
-        self.instructions_frame = ttk.Frame(main_frame)
-        self.instructions_frame.pack(fill=tk.X, pady=(0, 20))
-        
-        self.instruction_text = ttk.Label(
-            self.instructions_frame,
-            text="Click 'Connect Device' to begin. Enter participant ID first.\nKeyboard shortcuts: R = Repeat, N = Skip",
-            font=('Arial', 11),
-            foreground='blue'
-        )
-        self.instruction_text.pack()
+    
         
         # Answer selection frame
         self.answer_frame = ttk.Frame(main_frame)
