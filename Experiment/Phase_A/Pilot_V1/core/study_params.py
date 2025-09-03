@@ -1,0 +1,17 @@
+#Common parameters
+DUTY = 3
+FREQ = 6
+DURATION = 1000
+PULSE_DURATION = 100
+PAUSE_DURATION = 100
+NUM_PULSES = 5
+
+# Park et al. (2016) parameters
+MOTION_PARAMS = {
+    'SOA_SLOPE': 0.32,
+    'SOA_BASE': 0.0473,
+    'MAX_DURATION': 0.07,
+    'MIN_TRIANGLE_AREA': 25,
+}
+
+MOTION_DURATION = 0.8

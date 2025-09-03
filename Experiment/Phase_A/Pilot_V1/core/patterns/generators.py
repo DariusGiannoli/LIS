@@ -1,8 +1,8 @@
 import math
 from typing import List, Tuple, Dict, Optional, Union
 from dataclasses import dataclass
-from core.shared import LAYOUT_POSITIONS, MOTION_PARAMS, FREQ, DURATION, DUTY, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES
-
+from core.study_params import MOTION_PARAMS, FREQ, DURATION, DUTY, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, MOTION_DURATION
+from core.hardware.actuator_layout import LAYOUT_POSITIONS
 @dataclass
 class MotionCommand:
     actuator_id: int
@@ -117,7 +117,7 @@ class MotionEngine:
         
         return commands
 
-def generate_coordinate_pattern(coordinates, intensity=DUTY, freq=FREQ, duration=0.06):
+def generate_coordinate_pattern(coordinates, intensity=DUTY, freq=FREQ, duration=MOTION_DURATION):
 
     # Check if coordinates is None or empty
     if not coordinates:

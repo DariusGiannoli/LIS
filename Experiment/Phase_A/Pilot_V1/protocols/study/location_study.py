@@ -6,8 +6,8 @@ import random
 root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.insert(0, root_dir)
 from categories.location import create_all_commands_with_motion
-from core.serial_api import SerialAPI
-from core.shared import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)
+from core.hardware.serial_api import SerialAPI
+from core.study_params import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)
 
 sleep_during = 1.5
 sleep_between = 2

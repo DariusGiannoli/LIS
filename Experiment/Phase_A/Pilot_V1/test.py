@@ -1,5 +1,5 @@
 import time 
-from core.serial_api import SerialAPI
+from core.hardware.serial_api import SerialAPI
 
 if __name__ == '__main__':
     api = SerialAPI()

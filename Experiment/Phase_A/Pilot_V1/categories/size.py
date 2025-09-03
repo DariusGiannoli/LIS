@@ -1,7 +1,7 @@
-from core.patterns import generate_static_pattern, generate_pulse_pattern, generate_coordinate_pattern    
-from core.shared import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES,
-                cross_actuators, h_line_actuators, v_line_actuators, square_actuators, circle_actuators, l_actuators)
-from core.motion_actuators import square, circle, h_line, v_line, l
+from core.patterns.generators import generate_static_pattern, generate_pulse_pattern, generate_coordinate_pattern    
+from core.study_params import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)
+from core.patterns.fix_actuators import (cross_actuators, h_line_actuators, v_line_actuators, square_actuators, circle_actuators, l_actuators)
+from core.patterns.motion_actuators import square, circle, h_line, v_line, l
 
 # size: (actuators for static & pulse, actuators for motion)
 SIZE_CONFIGS = {

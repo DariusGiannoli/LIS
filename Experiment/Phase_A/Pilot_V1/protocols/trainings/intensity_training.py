@@ -1,3 +1,3 @@
-from core.serial_api import SerialAPI
+from core.hardware.serial_api import SerialAPI
 
 api = SerialAPI()

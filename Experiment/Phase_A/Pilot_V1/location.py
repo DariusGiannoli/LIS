@@ -15,8 +15,8 @@ from threading import Thread
 root_dir = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, root_dir)
 from categories.location import create_all_commands_with_motion
-from core.serial_api import SerialAPI
-from core.shared import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)
+from core.hardware.serial_api import SerialAPI
+from core.study_params import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)
 
 class LocationStudyInterface:
     """
@@ -62,10 +62,15 @@ class LocationStudyInterface:
         self.current_patterns = None
         self.current_pattern_name = None
         self.repeat_used = False
+        self.play_used = False
         
         # Results storage
         self.results = []
         self.participant_id = None
+        
+        # Timer
+        self.study_start_time = None
+        self.timer_running = False
         
         # Images
         self.horizontal_images = []
@@ -90,12 +95,25 @@ class LocationStudyInterface:
         header_frame = ttk.Frame(main_frame)
         header_frame.pack(fill=tk.X, pady=(0, 20))
         
+        # Title and timer frame
+        title_timer_frame = ttk.Frame(header_frame)
+        title_timer_frame.pack(fill=tk.X)
+        
         self.title_label = ttk.Label(
-            header_frame, 
+            title_timer_frame, 
             text="Location Study - Tactile Pattern Recognition",
             font=('Arial', 16, 'bold')
         )
-        self.title_label.pack()
+        self.title_label.pack(side=tk.LEFT)
+        
+        # Timer label in top right
+        self.timer_label = ttk.Label(
+            title_timer_frame,
+            text="Time: 00:00:00",
+            font=('Arial', 14, 'bold'),
+            foreground='blue'
+        )
+        self.timer_label.pack(side=tk.RIGHT)
         
         self.status_label = ttk.Label(
             header_frame, 
@@ -126,13 +144,32 @@ class LocationStudyInterface:
         progress_frame = ttk.Frame(header_frame)
         progress_frame.pack(fill=tk.X, pady=10)
         
-        self.progress_label = ttk.Label(progress_frame, text="Progress: 0/0")
+        self.progress_label = ttk.Label(progress_frame, text="Progress: 0/0", font=('Arial', 16, 'bold'))
         self.progress_label.pack()
         
         self.progress_bar = ttk.Progressbar(progress_frame, length=400, mode='determinate')
         self.progress_bar.pack(pady=5)
         
-    
+        # Pattern type display
+        self.pattern_type_label = ttk.Label(
+            progress_frame, 
+            text="Pattern Type: Not Started", 
+            font=('Arial', 14, 'bold'), 
+            foreground='darkgreen'
+        )
+        self.pattern_type_label.pack(pady=5)
+        
+        # Instructions frame
+        self.instructions_frame = ttk.Frame(main_frame)
+        self.instructions_frame.pack(fill=tk.X, pady=(0, 20))
+        
+        self.instruction_text = ttk.Label(
+            self.instructions_frame,
+            text="Click 'Connect Device' to begin. Enter participant ID first.\nKeyboard shortcuts: R = Repeat, N = Skip",
+            font=('Arial', 11),
+            foreground='blue'
+        )
+        self.instruction_text.pack()
         
         # Answer selection frame
         self.answer_frame = ttk.Frame(main_frame)
@@ -348,12 +385,12 @@ class LocationStudyInterface:
             messagebox.showerror("Connection", "No serial ports found.")
             return
         
-        if len(ports) < 1:
-            messagebox.showerror("Connection", f"Need at least 1 port, only found {len(ports)}.")
+        if len(ports) < 3:
+            messagebox.showerror("Connection", f"Need at least 3 ports, only found {len(ports)}.")
             return
         
         # Connect explicitly to port index 2 (third port)
-        connected = self.api.connect(ports[0])
+        connected = self.api.connect(ports[2])
         
         if connected:
             self.participant_id = self.participant_entry.get().strip()
@@ -369,6 +406,11 @@ class LocationStudyInterface:
         """Start the study"""
         self.current_sequence_index = 0
         self.results = []
+        
+        # Start timer
+        self.study_start_time = time.time()
+        self.timer_running = True
+        self.update_timer()
         
         # Update progress
         total_patterns = len(self.study_sequence)
@@ -425,7 +467,11 @@ Click 'Play Pattern' to begin."""
         self.progress_label.config(text=f"Progress: {progress}/{total}")
         self.progress_bar.config(value=progress)
         
-        
+        # Update pattern type display
+        pattern_parts = self.current_pattern_name.split('_')
+        pattern_type = pattern_parts[0].upper() if pattern_parts else "UNKNOWN"
+        orientation = pattern_parts[1].upper() if len(pattern_parts) > 1 else ""
+        self.pattern_type_label.config(text=f"Pattern Type: {pattern_type} {orientation}")
         
         # Setup answer grid for current pattern type
         self.setup_answer_grid()
@@ -435,6 +481,7 @@ Click 'Play Pattern' to begin."""
         self.repeat_button.config(state=tk.DISABLED)
         self.skip_button.config(state=tk.DISABLED)
         self.repeat_used = False
+        self.play_used = False
     
     def setup_answer_grid(self):
         """Setup the answer grid based on current pattern type"""
@@ -480,7 +527,12 @@ Click 'Play Pattern' to begin."""
         if self.current_sequence_index >= len(self.study_sequence):
             return
 
-        # Always disable Play button immediately
+        # Check if play button has already been used for this pattern
+        if self.play_used:
+            return
+
+        # Mark play as used and disable Play button immediately
+        self.play_used = True
         self.play_button.config(state=tk.DISABLED)
 
         current = self.study_sequence[self.current_sequence_index]
@@ -501,20 +553,40 @@ Click 'Play Pattern' to begin."""
         # Play pattern in separate thread
         def play_pattern():
             try:
+                print(f"🎯 Starting pattern: {self.current_pattern_name}")
+                
+                # Stop any previous patterns and clear buffers before starting
+                print("🛑 Stopping all previous patterns...")
+                stop_success = self.api.send_stop_all_command()
+                if not stop_success:
+                    print("⚠️ Warning: Stop all command failed")
+                
+                # Extra pause to ensure stop commands are processed
+                time.sleep(0.2)
+                
+                print(f"📤 Sending pattern with {len(pattern_data)} commands...")
                 success = self.api.send_timed_batch(pattern_data)
+                
                 if success:
+                    print("✅ Pattern sent successfully")
                     # Calculate pattern duration
                     max_delay = max(cmd.get('delay_ms', 0) for cmd in pattern_data)
-                    # Add a small buffer to ensure pattern completes
-                    time.sleep((max_delay + 500) / 1000.0)  # Convert to seconds
+                    total_duration = (max_delay + 500) / 1000.0  # Convert to seconds with buffer
+                    print(f"⏱️ Waiting {total_duration:.1f}s for pattern completion...")
+                    
+                    # Wait for pattern to complete
+                    time.sleep(total_duration)
 
                     # Pattern finished - record end time and enable answers
                     self.pattern_end_time = time.time()
+                    print("🏁 Pattern playback completed")
                     self.root.after(0, self.pattern_finished)
                 else:
+                    print("❌ Failed to send pattern")
                     self.root.after(0, lambda: messagebox.showerror("Error", "Failed to send pattern"))
                     self.root.after(0, self._reset_buttons_after_error)
             except Exception as e:
+                print(f"💥 Pattern playback error: {e}")
                 self.root.after(0, lambda: messagebox.showerror("Error", f"Pattern playback error: {e}"))
                 self.root.after(0, self._reset_buttons_after_error)
 
@@ -522,7 +594,7 @@ Click 'Play Pattern' to begin."""
     
     def _reset_buttons_after_error(self):
         """Reset button states after an error during pattern playback"""
-        self.play_button.config(state=tk.NORMAL)
+        # Don't re-enable play button since it can only be used once per pattern
         # Don't enable repeat/skip buttons until pattern has been played successfully
     
     def _handle_repeat_key(self):
@@ -552,8 +624,7 @@ Click 'Play Pattern' to begin."""
             self.repeat_button.config(state=tk.DISABLED)
         self.skip_button.config(state=tk.NORMAL)
 
-        # Only now re-enable Play button
-        self.play_button.config(state=tk.NORMAL)
+        # Don't re-enable Play button since it can only be used once per pattern
     
     def answer_selected(self, selected_index):
         """Handle answer selection"""
@@ -613,24 +684,40 @@ Click 'Play Pattern' to begin."""
     
     def next_pattern(self):
         """Move to the next pattern"""
+        print(f"🔄 Transitioning to next pattern (current: {self.current_sequence_index})")
+        
+        # Stop all actuators and clear buffers before transitioning
+        print("🛑 Stopping all actuators before transition...")
+        self.api.send_stop_all_command()
+        
         self.play_button.config(state=tk.DISABLED)  # <--- Ensure play button is disabled during transition
         self.current_sequence_index += 1
         if self.current_sequence_index >= len(self.study_sequence):
+            print("🏁 Study completed!")
             self.study_complete()
         else:
-            # Delay loading next pattern to ensure UI updates first
-            self.root.after(100, self.load_current_pattern)
+            print(f"⏳ Loading pattern {self.current_sequence_index + 1}/{len(self.study_sequence)}")
+            # Longer delay to ensure clean transition
+            self.root.after(300, self.load_current_pattern)
     
     def repeat_pattern(self):
         """Repeat the current pattern only once, log repeat usage"""
         if self.repeat_used:
+            print("⚠️ Repeat already used for this pattern")
             return
+            
+        print(f"🔁 Repeating pattern: {self.current_pattern_name}")
         self.repeat_used = True
         self.repeat_button.config(state=tk.DISABLED)
+        
+        # Reset play_used so the pattern can be played again
+        self.play_used = False
+        
         if hasattr(self, 'pattern_end_time') and self.pattern_end_time:
             self.instruction_text.config(text="Repeating pattern...")
             self.root.after(500, self.play_current_pattern)  # Small delay for visual feedback
         else:
+            print("⚠️ No previous pattern to repeat, playing fresh")
             self.play_current_pattern()
     
     def skip_pattern(self):
@@ -662,6 +749,9 @@ Click 'Play Pattern' to begin."""
     
     def study_complete(self):
         """Handle study completion"""
+        # Stop timer
+        self.timer_running = False
+        
         self.instruction_text.config(text="Study Complete! Click 'Save Results' to save your data.")
         self.play_button.config(state=tk.DISABLED)
         self.repeat_button.config(state=tk.DISABLED)
@@ -684,6 +774,18 @@ Results Summary:
 Click 'Save Results' to save your data."""
         
         messagebox.showinfo("Study Complete", summary)
+    
+    def update_timer(self):
+        """Update the timer display"""
+        if self.timer_running and self.study_start_time:
+            elapsed = time.time() - self.study_start_time
+            hours = int(elapsed // 3600)
+            minutes = int((elapsed % 3600) // 60)
+            seconds = int(elapsed % 60)
+            time_str = f"Time: {hours:02d}:{minutes:02d}:{seconds:02d}"
+            self.timer_label.config(text=time_str)
+            # Update every second
+            self.root.after(1000, self.update_timer)
     
     def save_results(self):
         """Save results to file"""

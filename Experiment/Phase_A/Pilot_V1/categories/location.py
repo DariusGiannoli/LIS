@@ -1,6 +1,6 @@
 import itertools
-from core.shared import get_4x4_grid_mapping
-from core.patterns import generate_static_pattern, generate_pulse_pattern, generate_coordinate_pattern
+from core.hardware.actuator_layout import GRID_POSITION
+from core.patterns.generators import generate_static_pattern, generate_pulse_pattern, generate_coordinate_pattern
 
 # Location configuration: orientation -> (pattern_generator, motion_coordinates)
 LOCATION_CONFIGS = {
@@ -26,13 +26,13 @@ LOCATION_CONFIGS = {
 
 def _generate_horizontal_bar_patterns():
     """Generate horizontal bar patterns: [0,1], [1,2], [2,3], [4,5], etc."""
-    grid = get_4x4_grid_mapping()
+    grid = GRID_POSITION
     return [[grid[row][col], grid[row][col + 1]] 
             for row, col in itertools.product(range(4), range(3))]
 
 def _generate_vertical_bar_patterns():
     """Generate vertical bar patterns: [0,4], [1,5], [2,6], [4,8], etc."""
-    grid = get_4x4_grid_mapping()
+    grid = GRID_POSITION
     return [[grid[row][col], grid[row + 1][col]] 
             for col, row in itertools.product(range(4), range(3))]
 

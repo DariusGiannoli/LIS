@@ -35,6 +35,8 @@ class SerialAPI:
             print("❌ Error: Not connected to serial device")
             return False
             
+        print(f"🚀 Preparing to send {len(commands)} commands...")
+        
         # Validate and build command batch
         command_bytes = bytearray()
         for i, cmd in enumerate(commands):
@@ -56,11 +58,77 @@ class SerialAPI:
             command_bytes += self.create_command(addr, duty, freq, start_or_stop, delay_ms, wave)
         
         try:
+            # Clear buffers before sending new commands
+            print("🧹 Clearing serial buffers...")
+            self.clear_buffers()
+            
+            # Wait a moment for buffers to clear
+            import time
+            time.sleep(0.05)
+            
+            print(f"📤 Sending {len(command_bytes)} bytes...")
             bytes_written = self.serial_connection.write(command_bytes)
-            print(f"✅ Sent batch: {len(commands)} commands ({bytes_written} bytes)")
+            
+            # Ensure all data is sent immediately
+            self.serial_connection.flush()
+            
+            # Verify all bytes were written
+            if bytes_written != len(command_bytes):
+                print(f"⚠️ Warning: Expected to write {len(command_bytes)} bytes, only wrote {bytes_written}")
+                return False
+            
+            print(f"✅ Successfully sent batch: {len(commands)} commands ({bytes_written} bytes)")
             return True
         except Exception as e:
             print(f"❌ Failed to send batch: {e}")
+            return False
+
+    def clear_buffers(self):
+        """Clear input and output buffers to prevent command interference"""
+        try:
+            if self.serial_connection and self.serial_connection.is_open:
+                # Clear input buffer (remove any pending data from device)
+                self.serial_connection.reset_input_buffer()
+                # Clear output buffer (ensure previous commands are sent)
+                self.serial_connection.reset_output_buffer()
+                print("🧹 Cleared serial buffers")
+        except Exception as e:
+            print(f"⚠️ Could not clear buffers: {e}")
+
+    def send_stop_all_command(self):
+        """Send stop command to all actuators to ensure clean state"""
+        try:
+            if not self.connected:
+                print("⚠️ Not connected - cannot send stop all")
+                return False
+                
+            print("🛑 Sending stop commands to all actuators...")
+            
+            # Send stop commands to all 16 actuators
+            stop_commands = []
+            for addr in range(16):
+                stop_commands.append({
+                    'addr': addr,
+                    'duty': 0,
+                    'freq': 0,
+                    'start_or_stop': 0,  # Stop
+                    'delay_ms': 0,
+                    'wave': 0
+                })
+            
+            # Use the regular send method but with extra reliability
+            result = self.send_timed_batch(stop_commands)
+            if result:
+                print("✅ Stop all commands sent successfully")
+                # Give extra time for stop commands to be processed
+                import time
+                time.sleep(0.1)
+            else:
+                print("❌ Failed to send stop all commands")
+            
+            return result
+        except Exception as e:
+            print(f"❌ Failed to send stop all: {e}")
             return False
 
     def get_serial_ports(self):

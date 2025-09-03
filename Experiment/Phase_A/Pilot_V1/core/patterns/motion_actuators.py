@@ -1,5 +1,3 @@
-import math
-
 class square: 
     
     def get_big_square():

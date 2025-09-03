@@ -15,8 +15,8 @@ from threading import Thread
 root_dir = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, root_dir)
 from categories.shape import cross_pattern, h_line_pattern, v_line_pattern, square_pattern, circle_pattern, l_shape_pattern
-from core.serial_api import SerialAPI
-from core.shared import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)
+from core.hardware.serial_api import SerialAPI
+from core.study_params import (DUTY, FREQ, DURATION, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES)
 
 class ShapeStudyInterface:
     """
