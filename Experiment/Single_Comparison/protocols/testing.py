@@ -7,7 +7,7 @@ sys.path.insert(0, root_dir)
 from core.hardware.serial_api import SerialAPI
 from core.study_params import (DUTY, FREQ)
 
-duration = 1000
+duration = 2000
 
 def test_single_actuator(api, addr):
     """Test a single actuator by address"""

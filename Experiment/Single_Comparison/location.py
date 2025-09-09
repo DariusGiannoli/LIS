@@ -385,7 +385,7 @@ class LocationStudyInterface:
             messagebox.showerror("Connection", "No serial ports found.")
             return
         
-        if len(ports) < 3:
+        if len(ports) < 1:
             messagebox.showerror("Connection", f"Need at least 3 ports, only found {len(ports)}.")
             return
         
