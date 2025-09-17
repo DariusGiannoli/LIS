@@ -17,6 +17,8 @@ if __name__ == '__main__':
                 {"addr":0, "duty":8, "freq": 4, "start_or_stop": 0, "delay_ms": 1000},
                 {"addr": 1, "duty": 13, "freq": 4, "start_or_stop": 1, "delay_ms": 0},
                 {"addr":1, "duty":8, "freq": 4, "start_or_stop": 0, "delay_ms": 1000},
+                {"addr": 2, "duty": 13, "freq": 4, "start_or_stop": 1, "delay_ms": 0},
+                {"addr":2, "duty":8, "freq": 4, "start_or_stop": 0, "delay_ms": 1000},
             ]
             print("Sending test batch with 100-level duty values...")
             api.send_timed_batch(test_commands)

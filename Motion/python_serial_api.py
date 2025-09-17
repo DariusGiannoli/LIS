@@ -138,3 +138,50 @@ class python_serial_api:
     def disconnect_ble_device(self):
         """Legacy method - disconnects serial device instead"""
         return self.disconnect_serial_device()
+
+if __name__ == '__main__':
+    serial_api = python_serial_api()
+    print("Searching for Serial devices...")
+    device_names = serial_api.get_serial_devices()
+    print(device_names)
+    
+    # Example usage with GUI interaction:
+    if device_names:
+        if serial_api.connect_serial_device(device_names[2]):
+            serial_api.send_command(1, 7, 2, 1)
+            time.sleep(3)
+
+            serial_api.send_command(1, 7, 2, 0)
+            time.sleep(3)
+
+            # Example usage with a list of commands:
+            commands = [
+                {
+                    "addr": 0,
+                    "duty": 7,
+                    "freq": 2,
+                    "start_or_stop": 1
+                },
+                {
+                    "addr": 1,
+                    "duty": 7,
+                    "freq": 2,
+                    "start_or_stop": 1
+                },
+                {
+                    "addr": 2,
+                    "duty": 7,
+                    "freq": 2,
+                    "start_or_stop": 1
+                }
+            ]
+            serial_api.send_command_list(commands)
+            time.sleep(3)
+
+            for c in commands:
+                c['start_or_stop'] = 0
+            serial_api.send_command_list(commands)
+            time.sleep(3)
+            
+            serial_api.disconnect_serial_device()
+            time.sleep(3)
