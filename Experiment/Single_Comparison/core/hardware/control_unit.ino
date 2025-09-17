@@ -4,7 +4,7 @@
  * Protocol: 5 bytes per command
  * Byte 1: [serial_group(4)] [reserved(2)] [start_or_stop(1)]
  * Byte 2: 0x40 | [addr(6)]  
- * Byte 3: 0x80 | [duty(4)] [freq(3)] [wave(1)]
+ * Byte 3: 0x80 | [duty(4)] [freq(3)]
  * Byte 4: delay_low (8 bits)
  * Byte 5: delay_high (8 bits)
  */
@@ -30,7 +30,6 @@ struct TimedCommand {
   int is_start;
   int duty;
   int freq;
-  int wave;
 };
 
 // Dynamic command queue using std::vector - NO SIZE LIMIT!
@@ -74,7 +73,7 @@ void setup() {
   strip.show();
 
   Serial.println("✅ Ready to receive unlimited timed commands via USB Serial!");
-  Serial.println("📦 Protocol: 5 bytes per command [group+start][addr][duty+freq+wave][delay_low][delay_high]");
+  Serial.println("📦 Protocol: 5 bytes per command [group+start][addr][duty+freq][delay_low][delay_high]");
 }
 
 void loop() {
@@ -130,7 +129,6 @@ void processSerialData(uint8_t* data, int length) {
       int addr = byte2 & 0x3F;                        // Bits 5-0 (remove 0x40 prefix)
       int duty = (byte3 >> 3) & 0x0F;                 // Bits 6-3 ✅ CORRECT
       int freq = byte3 & 0x07;                        // Bits 2-0 ✅ FIXED (was >>1)
-      int wave = byte3 & 0x01;                        // Bit 0   ✅ ADDED
       
       // Reconstruct 16-bit delay from little-endian bytes
       uint16_t delay_ms = delay_low | (delay_high << 8);
@@ -148,8 +146,6 @@ void processSerialData(uint8_t* data, int length) {
       Serial.print(duty);
       Serial.print(", freq=");
       Serial.print(freq);
-      Serial.print(", wave=");
-      Serial.print(wave);
       Serial.print(", delay=");
       Serial.print(delay_ms);
       Serial.println("ms");
@@ -162,7 +158,7 @@ void processSerialData(uint8_t* data, int length) {
       }
 
       // Queue the command for timed execution
-      queueTimedCommand(serial_group_number, addr, is_start, duty, freq, wave, delay_ms);
+      queueTimedCommand(serial_group_number, addr, is_start, duty, freq, delay_ms);
     }
     
     Serial.print("📋 Total commands in queue: ");
@@ -175,7 +171,7 @@ void processSerialData(uint8_t* data, int length) {
   }
 }
 
-void queueTimedCommand(int serial_group_number, int addr, int is_start, int duty, int freq, int wave, uint16_t delay_ms) {
+void queueTimedCommand(int serial_group_number, int addr, int is_start, int duty, int freq, uint16_t delay_ms) {
   // Calculate execution time
   unsigned long execute_time = batch_start_time + delay_ms;
   
@@ -187,7 +183,7 @@ void queueTimedCommand(int serial_group_number, int addr, int is_start, int duty
   cmd.is_start = is_start;
   cmd.duty = duty;
   cmd.freq = freq;
-  cmd.wave = wave;
+
   
   command_queue.push_back(cmd);
   
@@ -216,8 +212,7 @@ void executeQueuedCommands() {
                  it->addr,
                  it->is_start,
                  it->duty,
-                 it->freq,
-                 it->wave);
+                 it->freq);
       
       Serial.print("⚡ EXECUTED: addr=");
       Serial.print(it->addr);
@@ -242,7 +237,7 @@ void executeQueuedCommands() {
  * Send command to actuator using STANDARDIZED format
  * This now matches the Python protocol exactly
  */
-void sendCommand(int serial_group_number, int motor_addr, int is_start, int duty, int freq, int wave) {
+void sendCommand(int serial_group_number, int motor_addr, int is_start, int duty, int freq) {
   // Validate serial group
   if (serial_group_number < 0 || serial_group_number >= subchain_num) {
     Serial.print("❌ Invalid serial group: ");
@@ -255,7 +250,7 @@ void sendCommand(int serial_group_number, int motor_addr, int is_start, int duty
     uint8_t message[2];
     message[0] = (motor_addr << 1) | is_start;
     // ✅ FIXED: Use standardized format matching Python
-    message[1] = 0x80 | ((duty & 0x0F) << 3) | (freq & 0x07) | (wave & 0x01);
+    message[1] = 0x80 | ((duty & 0x0F) << 3) | (freq & 0x07);
     
     serial_group[serial_group_number].write(message, 2);
     
@@ -267,8 +262,6 @@ void sendCommand(int serial_group_number, int motor_addr, int is_start, int duty
     Serial.print(duty);
     Serial.print(", freq=");
     Serial.print(freq);
-    Serial.print(", wave=");
-    Serial.println(wave);
     
   } else { 
     // Stop command: one byte
@@ -286,7 +279,7 @@ void printProtocolInfo() {
   Serial.println("📋 PROTOCOL INFORMATION:");
   Serial.println("Byte 1: [serial_group(4)] [reserved(2)] [start_or_stop(1)]");
   Serial.println("Byte 2: 0x40 | [addr(6)]");
-  Serial.println("Byte 3: 0x80 | [duty(4)] [freq(3)] [wave(1)]");
+  Serial.println("Byte 3: 0x80 | [duty(4)] [freq(3)]");
   Serial.println("Byte 4: delay_low (8 bits)");
   Serial.println("Byte 5: delay_high (8 bits)");
   Serial.println("---");

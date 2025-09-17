@@ -21,7 +21,7 @@ class SerialAPI:
         byte2 = 0x40 | (serial_addr & 0x3F)
         
         # Byte 3: 0x80 | [duty(4)] [freq(3)] [wave(1)]
-        byte3 = 0x80 | ((duty & 0x0F) << 3) | ((freq & 0x07) << 0) | (wave & 0x01)
+        byte3 = 0x80 | ((duty & 0x0F) << 3) | ((freq & 0x07))
         
         # Bytes 4-5: 16-bit delay in milliseconds (little-endian)
         delay_low = delay_ms & 0xFF
