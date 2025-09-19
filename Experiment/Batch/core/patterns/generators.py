@@ -122,7 +122,7 @@ def generate_coordinate_pattern(coordinates, intensity=DUTY, freq=FREQ, duration
     # Check if coordinates is None or empty
     if not coordinates:
         print("Warning: No coordinates provided, returning empty pattern")
-        return {'steps': []}  # ← FIX: Consistent return format
+        return []
     
     # Check if this is all device addresses (simple sequential motion)
     if all(isinstance(item, int) for item in coordinates):
@@ -187,98 +187,80 @@ def _convert_to_coordinates(mixed_list: List[Union[int, Tuple[float, float]]]) -
 
 def generate_static_pattern(devices, duty=DUTY, freq=FREQ, duration=DURATION):
     """Generate static vibration pattern for all devices, supporting per-actuator duty if duty is a list"""
+    commands = []
     # Support per-actuator duty cycle
     duties = duty if isinstance(duty, list) else [duty] * len(devices)
-    
-    # Start commands (immediate execution)
-    start_commands = [
+    # Start all devices immediately
+    commands.extend(
         {
             "addr": addr,
             "duty": d,
             "freq": freq,
             "start_or_stop": 1,
-            # No delay_ms field!
+            "delay_ms": 0,
         }
         for addr, d in zip(devices, duties)
-    ]
-    
-    # Stop commands (immediate execution)
-    stop_commands = [
+    )
+    # Stop all devices after duration
+    commands.extend(
         {
             "addr": addr,
             "duty": 0,
             "freq": 0,
             "start_or_stop": 0,
-            # No delay_ms field!
+            "delay_ms": duration,
         }
         for addr in devices
-    ]
-    
-    # Return execution steps with timing info
-    return {
-        'steps': [
-            {
-                'commands': start_commands, 
-                'delay_after_ms': duration  # Software timing
-            },
-            {
-                'commands': stop_commands, 
-                'delay_after_ms': 0  # No delay after stop
-            }
-        ]
-    }
+    )
+    return commands
 
 def generate_pulse_pattern(devices, duty=DUTY, freq=FREQ, pulse_duration=PULSE_DURATION, pause_duration=PAUSE_DURATION, num_pulses=NUM_PULSES):
     """Generate pulsed vibration pattern, supporting per-actuator duty if duty is a list"""
+    commands = []
     duties = duty if isinstance(duty, list) else [duty] * len(devices)
-    
-    steps = []
-    
     for pulse_num in range(num_pulses):
-        # Start commands for this pulse (immediate execution)
-        start_commands = [
+        # Calculate timing for this pulse
+        pulse_start_time = pulse_num * (pulse_duration + pause_duration)
+        pulse_stop_time = pulse_start_time + pulse_duration
+        # Start all devices for this pulse
+        commands.extend(
             {
                 "addr": addr,
                 "duty": d,
                 "freq": freq,
                 "start_or_stop": 1,
-                # No delay_ms field!
+                "delay_ms": pulse_start_time,
             }
             for addr, d in zip(devices, duties)
-        ]
-        
-        # Stop commands for this pulse (immediate execution)
-        stop_commands = [
+        )
+        # Stop all devices after pulse duration
+        commands.extend(
             {
                 "addr": addr,
                 "duty": 0,
                 "freq": 0,
                 "start_or_stop": 0,
-                # No delay_ms field!
+                "delay_ms": pulse_stop_time,
             }
             for addr in devices
-        ]
-        
-        # Add start step
-        steps.append({
-            'commands': start_commands,
-            'delay_after_ms': pulse_duration  # Wait for pulse to complete
-        })
-        
-        # Add stop step
-        delay_after_stop = pause_duration if pulse_num < num_pulses - 1 else 0  # No pause after last pulse
-        steps.append({
-            'commands': stop_commands,
-            'delay_after_ms': delay_after_stop  # Wait between pulses
-        })
-    
-    return {
-        'steps': steps
-    }
+        )
+    return commands
 
 def generate_motion_pattern(devices, intensity=DUTY, freq=FREQ, duration=0.06, **kwargs):
     """
     Generate motion pattern using the exact devices/coordinates provided.
+    
+    Args:
+        devices: Either:
+                - List of device addresses: [0, 1, 2, 3]
+                - Mixed list of addresses and coordinates: [0, (30,0), 1, (60,0)]
+                - Pure coordinates: [(30,0), (60,0), (90,0)]
+        intensity: Vibration intensity (1-15)
+        freq: Vibration frequency
+        duration: Duration of each vibration point in seconds
+    
+    Returns:
+        List of command dictionaries for the motion pattern
     """
     
     engine = get_motion_engine()
@@ -288,11 +270,11 @@ def generate_motion_pattern(devices, intensity=DUTY, freq=FREQ, duration=0.06, *
 
     if len(coordinates) < 1:
         print("Warning: No valid coordinates found")
-        return {'steps': []}
+        return []
 
     # Use the exact coordinates provided - no built-in pattern generation
     trajectory = coordinates
-    available_devices = set(LAYOUT_POSITIONS.keys())
+    available_devices = set(LAYOUT_POSITIONS.keys())  # Use all available devices for phantom sensations
 
     # Generate motion commands
     motion_commands = engine.generate_motion_commands(
@@ -301,118 +283,63 @@ def generate_motion_pattern(devices, intensity=DUTY, freq=FREQ, duration=0.06, *
         duration=duration
     )
 
-    if not motion_commands:
-        return {'steps': []}
+    # Convert to command format
+    commands = []
 
-    # Group commands by timing to create execution steps
-    # Sort motion commands by onset time
-    motion_commands.sort(key=lambda x: x.onset_time)
-    
-    steps = []
-    current_time = 0.0
-    command_events = []  # List of (time, 'start'/'stop', command_data)
-    
-    # Create start and stop events for each motion command
     for cmd in motion_commands:
         if cmd.actuator_id in available_devices:
             device_intensity = max(1, min(15, int(cmd.intensity * 15)))
-            
-            # Start event
-            command_events.append((
-                cmd.onset_time,
-                'start',
-                {
-                    "addr": cmd.actuator_id,
-                    "duty": device_intensity,
-                    "freq": freq,
-                    "start_or_stop": 1,
-                }
-            ))
-            
-            # Stop event
-            command_events.append((
-                cmd.onset_time + cmd.duration,
-                'stop',
-                {
-                    "addr": cmd.actuator_id,
-                    "duty": 0,
-                    "freq": 0,
-                    "start_or_stop": 0,
-                }
-            ))
-    
-    # Sort all events by time
-    command_events.sort(key=lambda x: x[0])
-    
-    # Group events that happen at the same time
-    i = 0
-    while i < len(command_events):
-        event_time = command_events[i][0]
-        
-        # Find all events at this time
-        same_time_events = []
-        while i < len(command_events) and command_events[i][0] == event_time:
-            same_time_events.append(command_events[i])
-            i += 1
-        
-        # Calculate delay from current time to this event time
-        delay_ms = int((event_time - current_time) * 1000)
-        
-        # Add delay step if needed (except for first step at time 0)
-        if delay_ms > 0 and steps:
-            # Modify the previous step to include this delay
-            steps[-1]['delay_after_ms'] = delay_ms
-        
-        # Create commands for this time point
-        commands_at_this_time = [event[2] for event in same_time_events]
-        
-        # Add execution step
-        steps.append({
-            'commands': commands_at_this_time,
-            'delay_after_ms': 0  # Will be updated if there's a next step
-        })
-        
-        current_time = event_time
 
-    return {
-        'steps': steps
-    }
+            commands.extend(
+                (
+                    {
+                        "addr": cmd.actuator_id,
+                        "duty": device_intensity,
+                        "freq": freq,
+                        "start_or_stop": 1,
+                        "delay_ms": int(cmd.onset_time * 1000),
+                    },
+                    {
+                        "addr": cmd.actuator_id,
+                        "duty": 0,
+                        "freq": 0,
+                        "start_or_stop": 0,
+                        "delay_ms": int(
+                            (cmd.onset_time + cmd.duration) * 1000
+                        ),
+                    },
+                )
+            )
+    # Sort by delay time
+    commands.sort(key=lambda x: x['delay_ms'])
+
+    return commands
 
 def generate_sequential_pattern(devices, duty=DUTY, freq=FREQ, duration_per_device=500, pause_between=100):
     """Generate sequential activation pattern through devices in order"""
-    steps = []
-    
-    for i, addr in enumerate(devices):
-        # Start command for this device
-        start_command = {
-            "addr": addr,
-            "duty": duty,
-            "freq": freq,
-            "start_or_stop": 1,
-        }
-        
-        # Stop command for this device  
-        stop_command = {
-            "addr": addr,
-            "duty": 0,
-            "freq": 0,
-            "start_or_stop": 0,
-        }
-        
-        # Add start step
-        steps.append({
-            'commands': [start_command],
-            'delay_after_ms': duration_per_device
-        })
-        
-        # Add stop step
-        # Only add pause if this isn't the last device
-        delay_after_stop = pause_between if i < len(devices) - 1 else 0
-        steps.append({
-            'commands': [stop_command], 
-            'delay_after_ms': delay_after_stop
-        })
-    
-    return {
-        'steps': steps
-    }
+    commands = []
+    current_time = 0
+
+    for addr in devices:
+        commands.extend(
+            (
+                {
+                    "addr": addr,
+                    "duty": duty,
+                    "freq": freq,
+                    "start_or_stop": 1,
+                    "delay_ms": current_time,
+                },
+                {
+                    "addr": addr,
+                    "duty": 0,
+                    "freq": 0,
+                    "start_or_stop": 0,
+                    "delay_ms": current_time + duration_per_device,
+                },
+            )
+        )
+        # Move to next device timing
+        current_time += duration_per_device + pause_between
+
+    return commands

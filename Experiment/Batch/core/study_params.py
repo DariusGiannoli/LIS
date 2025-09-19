@@ -1,5 +1,5 @@
 #Common parameters
-DUTY = 10
+DUTY = 14
 FREQ = 5
 DURATION = 1000
 PULSE_DURATION = 100
