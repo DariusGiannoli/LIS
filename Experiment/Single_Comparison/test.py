@@ -1,8 +1,8 @@
 import time 
-from core.hardware.serial_api import SerialAPI
+from core.hardware.serial_api import Serial_API
 
 if __name__ == '__main__':
-    api = SerialAPI()
+    api = Serial_API()
     
     # Find available ports
     ports = api.get_serial_ports()
