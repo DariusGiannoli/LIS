@@ -313,16 +313,11 @@ class SerialBackend(BaseBackend):
         self._runners.append(runner)
         runner.start()
 
-    def stop_all(self) -> None:
-        # Signal and join runners
-        for r in self._runners:
-            r.stop()
-        for r in self._runners:
-            r.join(0.2)
-        self._runners.clear()
-        # Issue stop to every possible address (0..15)
-        for a in range(16):
-            self._send(a, 0, 0, False)
+        def _stop_all_clicked(self):
+            if self.use_enhanced:
+                self.enhanced_backend.stop_all()
+            else:
+                self.backend.stop_all()
 
 
 class MockBackend(BaseBackend):

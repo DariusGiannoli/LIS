@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
     QListWidgetItem,
     QComboBox,
     QMenu,
+    QButtonGroup, 
 )
 
 from widgets.actuator_grid import ActuatorGrid
@@ -107,27 +108,46 @@ class MainWindow(QMainWindow):
         ml.addLayout(self.motion_max_ph.l)
         ml.addLayout(self.motion_sampling.l)
 
-        row_motion_btns = QHBoxLayout()
-        btn_clear_path = QPushButton("Clear Path")
-        row_motion_btns.addStretch(1)
-        row_motion_btns.addWidget(btn_clear_path)
-        ml.addLayout(row_motion_btns)
 
         left_layout.addWidget(motion)
 
         # -------- Actuator selection helpers --------
         tools = QGroupBox("Actuator Selection (affects current mode)")
         tl = QHBoxLayout(tools)
-        self.mode_combo = QComboBox()
-        self.mode_combo.addItems(["buzz", "pulse", "motion"])
-        self.mode_combo.currentTextChanged.connect(self._mode_changed)
-        self.sel_all_btn = QPushButton("Select All")
-        self.clear_btn = QPushButton("Clear")
-        self.sel_all_btn.clicked.connect(lambda: self.grid.selectAllCurrent())
-        self.clear_btn.clicked.connect(lambda: self.grid.clearCurrent())
+
         tl.addWidget(QLabel("Mode:"))
-        tl.addWidget(self.mode_combo)
+
+        # Segmented buttons: Buzz | Pulse | Motion
+        self.mode_group = QButtonGroup(self)
+        self.mode_buzz_btn = QPushButton("Buzz")
+        self.mode_pulse_btn = QPushButton("Pulse")
+        self.mode_motion_btn = QPushButton("Motion")
+
+        for btn, mode in [
+            (self.mode_buzz_btn, "buzz"),
+            (self.mode_pulse_btn, "pulse"),
+            (self.mode_motion_btn, "motion"),
+        ]:
+            btn.setCheckable(True)
+            btn.setProperty("mode", mode)          # we read this in the handler
+            self.mode_group.addButton(btn)
+            tl.addWidget(btn)
+
+        # Default mode
+        self.mode_buzz_btn.setChecked(True)
+        self.grid.setMode("buzz")
+
+        # When a button is clicked, switch mode
+        self.mode_group.buttonClicked.connect(self._on_mode_button_clicked)
+
         tl.addStretch(1)
+
+        self.sel_all_btn = QPushButton("Select All")
+        self.clear_btn   = QPushButton("Clear")
+
+        self.sel_all_btn.clicked.connect(lambda: self.grid.selectAllCurrent())
+        self.clear_btn.clicked.connect(self._clear_all_modes)   # ← clear ALL modes
+
         tl.addWidget(self.sel_all_btn)
         tl.addWidget(self.clear_btn)
         left_layout.addWidget(tools)
@@ -171,7 +191,6 @@ class MainWindow(QMainWindow):
         guide = QLabel("Click circles to select actuators for the current mode.")
         guide.setStyleSheet("color:#334155; margin:4px;")
         self.grid.selectionChanged.connect(lambda _m, _s: self._update_status())
-        btn_clear_path.clicked.connect(self.grid.clearMotion)
         right_layout.addWidget(guide)
         right_layout.addWidget(self.grid, 1)
         self.status = QLabel("")
@@ -235,6 +254,26 @@ class MainWindow(QMainWindow):
 
     def _sel(self, mode: str) -> List[int]:
         return sorted(self.grid.selection(mode))
+    
+    def _on_mode_button_clicked(self, button):
+        """Switch grid mode when a segmented button is clicked."""
+        mode = button.property("mode")
+        if isinstance(mode, str):
+            self.grid.setMode(mode)
+            self._update_status()
+
+    def _clear_all_modes(self):
+        """Clear ALL selections (Buzz, Pulse, Motion) and the drawn Motion path."""
+        # Clear per-mode selections
+        self.grid.setSelection("buzz", set())
+        self.grid.setSelection("pulse", set())
+        self.grid.setSelection("motion", set())
+
+        # Clear the drawn Motion path (no clearMotion anymore)
+        self.grid.set_motion_drawn_path_norm([])
+
+        # Refresh preview/labels
+        self._update_status()
     
     def _preview_selected_modes(self):
         # Buzz & Pulse come from explicit selections

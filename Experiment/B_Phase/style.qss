@@ -122,5 +122,20 @@ QScrollBar::handle:horizontal {
 }
 QScrollBar::handle:horizontal:hover { background: #6b7280; }
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
+/* Make segmented buttons sit flush */
+QGroupBox QPushButton {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+QGroupBox QPushButton + QPushButton {
+  border-left: 0;  /* remove inner border between segments */
+  border-radius: 0;
+}
+QGroupBox QPushButton + QPushButton + QPushButton {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
 
 /* Note: actuator circles (QToolButtons) remain styled inline by widget */
