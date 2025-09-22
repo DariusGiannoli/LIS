@@ -1,0 +1,29 @@
+[
+  {
+    "name": "test",
+    "buzz": {
+      "actuators": [
+        5,
+        8
+      ],
+      "duty": 8,
+      "freq_idx": 3,
+      "duration_ms": 500,
+      "mode": "buzz"
+    },
+    "pulse": {
+      "actuators": [
+        0,
+        1,
+        4
+      ],
+      "duty": 8,
+      "freq_idx": 3,
+      "on_ms": 100,
+      "off_ms": 100,
+      "repetitions": 10,
+      "mode": "pulse"
+    },
+    "motion": null
+  }
+]
