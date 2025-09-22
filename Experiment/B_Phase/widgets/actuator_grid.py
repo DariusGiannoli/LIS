@@ -96,15 +96,14 @@ class ActuatorGrid(QWidget):
         grid.setContentsMargins(8, 8, 8, 8)
         grid.setSpacing(14)
 
-        idx = 0
         for r in range(4):
             for c in range(4):
-                idx += 1  # label 1..16; address is (idx-1)
+                addr = r * 4 + c            # 0..15
                 b = QToolButton()
-                b.setText(str(idx))
-                b.setCheckable(False)
+                b.setText(str(addr))        # show 0..15 on the buttons
+                b.setCheckable(False)       # we handle styling ourselves
                 b.setFixedSize(56, 56)
-                b.clicked.connect(lambda _=False, k=idx-1: self._toggle(k))
+                b.clicked.connect(lambda _=False, k=addr: self._toggle(k))  # use the exact addr
                 self._buttons.append(b)
                 grid.addWidget(b, r, c)
                 # Transparent overlay for Motion drawing, sits above the buttons
