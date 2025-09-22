@@ -15,3 +15,5 @@ MOTION_PARAMS = {
 }
 
 MOTION_DURATION = 0.06
+MOVEMENT_SPEED = 2000  # Add this line - pixels/second, higher = fewer phantoms
+

@@ -1,6 +1,7 @@
 import itertools
 from core.hardware.actuator_layout import GRID_POSITION
 from core.patterns.generators import generate_static_pattern, generate_pulse_pattern, generate_coordinate_pattern
+from core.study_params import MOVEMENT_SPEED
 
 # Location configuration: orientation -> (pattern_generator, motion_coordinates)
 LOCATION_CONFIGS = {
@@ -44,7 +45,9 @@ def _create_orientation_patterns(orientation, pattern_type, **params):
         return [generate_coordinate_pattern(
             coordinates=coords,
             intensity=params['DUTY'],
-            freq=params['FREQ']
+            freq=params['FREQ'], 
+            movement_speed=MOVEMENT_SPEED  # Use the imported parameter
+
         ) for coords in config['motion_coords']()]
     
     # Static or pulse patterns
