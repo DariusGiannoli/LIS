@@ -96,7 +96,7 @@ class MainWindow(QMainWindow):
 
         self.motion_intensity = self._spin("Intensity (0..15)", 0, 15, 10)
         self.motion_freq = self._spin("Frequency index (0..7)", 0, 7, 3)
-        self.motion_total = self._spin("Total time (ms)", 50, 120000, 3000)
+        self.motion_total = self._spin("Total time (ms)", 1, 120000, 500)
         self.motion_step = self._spin("Step duration (ms, ≤69)", 1, 69, 40)
         self.motion_max_ph = self._spin("Max phantom", 1, 100, 1)
         self.motion_sampling = self._spin("Sampling rate (Hz)", 1, 240, 60)
@@ -214,6 +214,7 @@ class MainWindow(QMainWindow):
         s = QSpinBox()
         s.setRange(mn, mx)
         s.setValue(val)
+        s.setSingleStep(10)   # or 1 if you want super fine control
         s.setMaximumWidth(120)
         row.addStretch(1)
         row.addWidget(s)
@@ -332,13 +333,14 @@ class MainWindow(QMainWindow):
             max_phantom=self.motion_max_ph.spin.value(),
             sampling_hz=self.motion_sampling.spin.value(),
         )
-        if schedule:
+        if schedule and self.backend.is_connected():
             step_ms = min(self.motion_step.spin.value(), 69)
             self.backend.play_motion_schedule(
                 schedule=schedule,
                 freq_idx=self.motion_freq.spin.value(),
                 step_ms=step_ms,
             )
+
 
     def _save_pattern(self):
         # Build a MultiPattern from current selections

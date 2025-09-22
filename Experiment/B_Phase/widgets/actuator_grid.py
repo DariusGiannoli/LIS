@@ -319,26 +319,57 @@ class ActuatorGrid(QWidget):
             a, b = pts[j-1], pts[j]
             out.append(QPointF(a.x() * (1 - u) + b.x() * u, a.y() * (1 - u) + b.y() * u))
         return out
+    
+    def _triangle_area(self, p1: QPointF, p2: QPointF, p3: QPointF) -> float:
+        return abs(0.5 * ((p2.x() - p1.x()) * (p3.y() - p1.y()) - (p3.x() - p1.x()) * (p2.y() - p1.y())))
 
-    def _top3_weights(self, p: QPointF, centers: list[tuple[int, QPointF]]) -> list[tuple[int, float]]:
-        # pick 3 closest actuators, weight by inverse squared distance
-        best = []
-        for addr, c in centers:
-            dx, dy = p.x() - c.x(), p.y() - c.y()
-            d2 = dx*dx + dy*dy
-            best.append((d2, addr))
-        best.sort(key=lambda x: x[0])
-        picks = best[:3]
+    def _park_three_weights(self, p: QPointF, tri: list[tuple[int, QPointF]], Av: float) -> list[tuple[int, float]]:
+        # Eq. (10) in Park et al.: Ai = sqrt( (1/di) / sum_j(1/dj) ) * Av
+        # Use a small epsilon to avoid divide-by-zero on sensor center hits.
         eps = 1e-6
-        ws = []
-        denom = 0.0
-        for d2, addr in picks:
-            w = 1.0 / ((d2 + eps) ** 1.0)  # inverse distance (power 1). Use 2.0 for sharper focus.
-            ws.append([addr, w])
-            denom += w
-        if denom <= 0:
-            return [(addr, 0.0) for addr, _ in ws]
-        return [(addr, w/denom) for addr, w in ws]
+        invds = []
+        for addr, c in tri:
+            d = math.hypot(p.x() - c.x(), p.y() - c.y())
+            invds.append((addr, 1.0 / max(eps, d)))
+        denom = sum(v for _, v in invds) or eps
+        out = []
+        for addr, invd in invds:
+            Ai = math.sqrt(invd / denom) * Av
+            out.append((addr, Ai))
+        return out
+
+    def _park_two_weights(self, p: QPointF, a: tuple[int, QPointF], b: tuple[int, QPointF], Av: float) -> list[tuple[int, float]]:
+        # Eq. (2) from Park et al. (tactile brush): A1 = sqrt(d2/(d1+d2))*Av, A2 = sqrt(d1/(d1+d2))*Av
+        eps = 1e-6
+        d1 = math.hypot(p.x() - a[1].x(), p.y() - a[1].y())
+        d2 = math.hypot(p.x() - b[1].x(), p.y() - b[1].y())
+        denom = max(eps, d1 + d2)
+        A1 = math.sqrt(d2 / denom) * Av
+        A2 = math.sqrt(d1 / denom) * Av
+        return [(a[0], A1), (b[0], A2)]
+
+    def _top3_weights(self, p: QPointF, centers: list[tuple[int, QPointF]], Av: float) -> list[tuple[int, float]]:
+        # Pick the three closest tactors
+        closest = sorted(centers, key=lambda ac: (p.x() - ac[1].x())**2 + (p.y() - ac[1].y())**2)[:3]
+        if len(closest) < 2:
+            return []
+        if len(closest) == 2:
+            return self._park_two_weights(p, closest[0], closest[1], Av)
+
+        # 3-tactor case: if the triangle is nearly collinear, fall back to 2 tactors
+        area = self._triangle_area(closest[0][1], closest[1][1], closest[2][1])
+        if area < 1e-3:
+            # choose the best two among the three
+            pairs = [
+                (closest[0], closest[1]),
+                (closest[0], closest[2]),
+                (closest[1], closest[2]),
+            ]
+            best = min(pairs, key=lambda ab: abs(self._triangle_area(ab[0][1], ab[1][1], p)))
+            return self._park_two_weights(p, best[0], best[1], Av)
+
+        return self._park_three_weights(p, closest, Av)
+
 
     def build_motion_schedule(
         self,
@@ -382,19 +413,20 @@ class ActuatorGrid(QWidget):
             accum: dict[int, float] = {}
             for h in heads_idx:
                 p = samples[h]
-                for addr, w in self._top3_weights(p, centers):
-                    accum[addr] = accum.get(addr, 0.0) + w
+                for addr, Ai in self._top3_weights(p, centers, Av=float(intensity)):
+                    accum[addr] = accum.get(addr, 0.0) + Ai
+
 
             # normalize and convert to 0..15 duty per actuator (sum phantoms, clamp)
             frame: list[tuple[int, int]] = []
             if accum:
-                # normalize by max weight (preserve relative sum)
-                mval = max(accum.values())
-                for addr, val in accum.items():
-                    duty = int(round(intensity * (val / mval)))
+                # Ai already carries Av=intensity scaling; just clamp to 0..15 per address
+                for addr, Ai in accum.items():
+                    duty = int(round(min(15.0, max(0.0, Ai))))
                     if duty > 0:
-                        frame.append((addr, min(15, duty)))
-            schedule.append(frame)
+                        frame.append((addr, duty))
+
+                        schedule.append(frame)
 
         return schedule
 
