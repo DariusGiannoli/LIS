@@ -27,6 +27,8 @@ from patterns import (
     MultiPattern, load_library, save_library
 )
 
+from generators import generate_static_pattern, generate_pulse_pattern, generate_motion_pattern
+
 
 class MainWindow(QMainWindow):
     def __init__(self, backend: BaseBackend):
@@ -303,43 +305,106 @@ class MainWindow(QMainWindow):
             ms=900,
         )
 
-    def _play_selected_modes(self):
-        # Buzz
+    def _play_selected_modes(self):    
+    # --- BUZZ Pattern ---
         buzz_sel = self._sel("buzz")
         if buzz_sel:
-            self.backend.play_buzz(
-                buzz_sel,
+            # Generate buzz pattern using generators.py
+            buzz_pattern = generate_static_pattern(
+                devices=buzz_sel,
                 duty=self.buzz_intensity.spin.value(),
-                freq_idx=self.buzz_freq.spin.value(),
-                duration_ms=self.buzz_duration.spin.value(),
+                freq=self.buzz_freq.spin.value(),
+                duration=self.buzz_duration.spin.value()
             )
-        # Pulse
+            
+            # Execute the generated pattern
+            if hasattr(self.backend, 'play_generator_pattern'):
+                self.backend.play_generator_pattern(
+                    pattern_dict=buzz_pattern,
+                    freq_idx=self.buzz_freq.spin.value()
+                )
+            else:
+                # Fallback to old method if bridge not available
+                self.backend.play_buzz(
+                    buzz_sel,
+                    duty=self.buzz_intensity.spin.value(),
+                    freq_idx=self.buzz_freq.spin.value(),
+                    duration_ms=self.buzz_duration.spin.value(),
+                )
+        
+        # --- PULSE Pattern ---
         pulse_sel = self._sel("pulse")
         if pulse_sel:
-            self.backend.play_pulse(
-                pulse_sel,
+            # Generate pulse pattern using generators.py
+            pulse_pattern = generate_pulse_pattern(
+                devices=pulse_sel,
                 duty=self.pulse_intensity.spin.value(),
-                freq_idx=self.pulse_freq.spin.value(),
-                on_ms=self.pulse_on.spin.value(),
-                off_ms=self.pulse_off.spin.value(),
-                repetitions=self.pulse_rep.spin.value(),
+                freq=self.pulse_freq.spin.value(),
+                pulse_duration=self.pulse_on.spin.value(),
+                pause_duration=self.pulse_off.spin.value(),
+                num_pulses=self.pulse_rep.spin.value()
             )
+            
+            # Execute the generated pattern
+            if hasattr(self.backend, 'play_generator_pattern'):
+                self.backend.play_generator_pattern(
+                    pattern_dict=pulse_pattern,
+                    freq_idx=self.pulse_freq.spin.value()
+                )
+            else:
+                # Fallback to old method if bridge not available
+                self.backend.play_pulse(
+                    pulse_sel,
+                    duty=self.pulse_intensity.spin.value(),
+                    freq_idx=self.pulse_freq.spin.value(),
+                    on_ms=self.pulse_on.spin.value(),
+                    off_ms=self.pulse_off.spin.value(),
+                    repetitions=self.pulse_rep.spin.value(),
+                )
+        
+        # --- MOTION Pattern ---
+        # Convert the drawn path to coordinates for the generator
+        path_norm = self.grid.motion_drawn_path_norm()
+        if len(path_norm) >= 2:
+            # Convert normalized path to actual coordinates
+            coordinates = []
+            for x_norm, y_norm in path_norm:
+                # These are normalized coordinates [0,1] - the generator can handle them
+                coordinates.append((x_norm, y_norm))
+            
+            if coordinates:
+                # Generate motion pattern using generators.py
+                motion_pattern = generate_motion_pattern(
+                    devices=coordinates,  # Pass the coordinate path
+                    intensity=self.motion_intensity.spin.value(),
+                    freq=self.motion_freq.spin.value(),
+                    duration=self.motion_step.spin.value() / 1000.0  # Convert ms to seconds
+                )
+                
+                # Execute the generated pattern
+                if hasattr(self.backend, 'play_generator_pattern'):
+                    self.backend.play_generator_pattern(
+                        pattern_dict=motion_pattern,
+                        freq_idx=self.motion_freq.spin.value()
+                    )
+                else:
+                    # Fallback to old schedule-based method
+                    schedule = self.grid.build_motion_schedule(
+                        intensity=self.motion_intensity.spin.value(),
+                        total_ms=self.motion_total.spin.value(),
+                        step_ms=self.motion_step.spin.value(),
+                        max_phantom=self.motion_max_ph.spin.value(),
+                        sampling_hz=self.motion_sampling.spin.value(),
+                    )
+                    if schedule and self.backend.is_connected():
+                        step_ms = min(self.motion_step.spin.value(), 69)
+                        self.backend.play_motion_schedule(
+                            schedule=schedule,
+                            freq_idx=self.motion_freq.spin.value(),
+                            step_ms=step_ms,
+                        )
+    
         self._update_status()
-        # Motion (drawn)
-        schedule = self.grid.build_motion_schedule(
-            intensity=self.motion_intensity.spin.value(),
-            total_ms=self.motion_total.spin.value(),
-            step_ms=self.motion_step.spin.value(),      # clamped ≤ 69 by builder
-            max_phantom=self.motion_max_ph.spin.value(),
-            sampling_hz=self.motion_sampling.spin.value(),
-        )
-        if schedule and self.backend.is_connected():
-            step_ms = min(self.motion_step.spin.value(), 69)
-            self.backend.play_motion_schedule(
-                schedule=schedule,
-                freq_idx=self.motion_freq.spin.value(),
-                step_ms=step_ms,
-            )
 
 
     def _save_pattern(self):

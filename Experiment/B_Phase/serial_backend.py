@@ -73,6 +73,9 @@ class BaseBackend:
         step_ms: int,
     ) -> None:
         raise NotImplementedError
+    
+    def play_generator_pattern(self, pattern_dict: dict, freq_idx: int = 0) -> None:
+        raise NotImplementedError
 
     def stop_actuators(self, actuators: Iterable[int]) -> None:
         raise NotImplementedError
@@ -145,7 +148,6 @@ class SerialBackend(BaseBackend):
                 print(f"[ERR] send_command(addr={addr}, duty={duty}, freq={freq_idx}, start={start_or_stop}) → {e}")
                 return False
 
-
     def stop_actuators(self, actuators: Iterable[int]) -> None:
         for a in set(actuators):
             self._send(a, 0, 0, False)
@@ -177,8 +179,6 @@ class SerialBackend(BaseBackend):
                 self._send(addr, 0, 0, False)
             except Exception:
                 continue
-
-
 
     # ----------------------- patterns -----------------------
     def play_buzz(self, actuators: Iterable[int], duty: int, freq_idx: int, duration_ms: int) -> None:
@@ -240,23 +240,13 @@ class SerialBackend(BaseBackend):
         runner.start()
     
     def play_motion_schedule(
-    self,
-    schedule: list[list[tuple[int, int]]],
-    freq_idx: int,
-    step_ms: int,
-) -> None:
-        if not self.is_connected():
-            return
-        if not schedule:
-            return
-        step_s = max(0.001, int(step_ms) / 1000.0)
-
-    def play_motion_schedule(
         self,
         schedule: list[list[tuple[int, int]]],
         freq_idx: int,
         step_ms: int,
     ) -> None:
+        if not self.is_connected():
+            return
         if not schedule:
             return
 
@@ -314,7 +304,54 @@ class SerialBackend(BaseBackend):
         self._runners.append(runner)
         runner.start()
 
-    
+    def play_generator_pattern(self, pattern_dict: dict, freq_idx: int = 0) -> None:
+        """Execute patterns created by generators.py
+        
+        Args:
+            pattern_dict: Output from generate_*_pattern() functions
+            freq_idx: Frequency index for hardware
+        """
+        if not self.is_connected():
+            return
+        
+        steps = pattern_dict.get('steps', [])
+        if not steps:
+            return
+
+        def _worker(stop_evt: threading.Event):
+            try:
+                for step in steps:
+                    if stop_evt.is_set():
+                        break
+                    
+                    # Execute all commands in this step immediately
+                    commands = step.get('commands', [])
+                    for cmd in commands:
+                        if stop_evt.is_set():
+                            break
+                        
+                        addr = cmd.get('addr')
+                        duty = cmd.get('duty', 0)
+                        start = bool(cmd.get('start_or_stop', 0))
+                        
+                        if addr is not None:
+                            self._send(addr, duty, freq_idx, start)
+                    
+                    # Wait for the specified delay
+                    delay_ms = step.get('delay_after_ms', 0)
+                    if delay_ms > 0:
+                        t_end = time.time() + delay_ms / 1000.0
+                        while time.time() < t_end:
+                            if stop_evt.is_set():
+                                break
+                            time.sleep(0.001)
+            
+            except Exception as e:
+                print(f"[ERR] play_generator_pattern worker: {e}")
+        
+        runner = _Runner(_worker)
+        self._runners.append(runner)
+        runner.start()
 
 
 class MockBackend(BaseBackend):
@@ -363,6 +400,33 @@ class MockBackend(BaseBackend):
         if schedule[:1]:
             print(f"[MOCK] first frame: {schedule[0][:6]}")
 
+    def play_generator_pattern(self, pattern_dict: dict, freq_idx: int = 0) -> None:
+        """Mock execution of generator patterns"""
+        steps = pattern_dict.get('steps', [])
+        print(f"[MOCK] play_generator_pattern({len(steps)} steps, freq={freq_idx})")
+        if steps:
+            first_step = steps[0]
+            commands = first_step.get('commands', [])
+            print(f"[MOCK] first step: {len(commands)} commands")
+            for cmd in commands[:3]:  # Show first few commands
+                addr = cmd.get('addr', '?')
+                duty = cmd.get('duty', 0)
+                start = cmd.get('start_or_stop', 0)
+                print(f"[MOCK]   addr={addr} duty={duty} start={start}")
+            if len(commands) > 3:
+                print(f"[MOCK]   ... and {len(commands)-3} more commands")
 
     def stop_all(self) -> None:
         print("[MOCK] stop_all()")
+        # Stop any mock runners if needed
+        try:
+            runners = getattr(self, "_runners", [])
+            for r in list(runners):
+                try:
+                    r.stop()
+                except Exception:
+                    pass
+            if hasattr(self, "_runners"):
+                self._runners.clear()
+        except Exception:
+            pass
