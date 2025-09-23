@@ -91,21 +91,32 @@ class ActuatorGrid(QWidget):
         self._preview_by_mode = {"buzz": set(), "pulse": set(), "motion": set()}
         self._buttons: list[QToolButton] = []
 
-        # --- UI: 4x4 grid of circular buttons ---
+        # --- UI: 4x4 grid of circular buttons with custom layout ---
+        # Custom grid position mapping
+        self.GRID_POSITION = [
+        [3, 2, 1, 0],   # Row 0
+        [4, 5, 6, 7],   # Row 1
+        [11, 10, 9, 8],   # Row 2
+        [12, 13, 14, 15]   # Row 3
+]
+        
         grid = QGridLayout(self)
         grid.setContentsMargins(8, 8, 8, 8)
         grid.setSpacing(14)
 
+        # Create buttons array with 16 elements to match actuator addresses
+        self._buttons = [None] * 16
+        
         for r in range(4):
             for c in range(4):
-                addr = r * 4 + c            # 0..15
+                addr = self.GRID_POSITION[r][c]  # Get actuator address from layout
                 b = QToolButton()
-                b.setText(str(addr))        # show 0..15 on the buttons
+                b.setText(str(addr))        # show actuator address on the buttons
                 b.setCheckable(False)       # we handle styling ourselves
                 b.setFixedSize(56, 56)
                 b.clicked.connect(lambda _=False, k=addr: self._toggle(k))  # use the exact addr
-                self._buttons.append(b)
-                grid.addWidget(b, r, c)
+                self._buttons[addr] = b     # Store button at its actuator address index
+                grid.addWidget(b, r, c)     # Place button at grid position
                 # Transparent overlay for Motion drawing, sits above the buttons
         self._overlay = _MotionOverlay(self)
         self._overlay.setGeometry(self.rect())
@@ -131,8 +142,9 @@ class ActuatorGrid(QWidget):
         if hasattr(self, "_overlay"):
             self._overlay.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, not is_motion)
             self._overlay.setVisible(True)
-        for b in self._buttons:
-            b.setEnabled(not is_motion)  # prevent accidental button toggles while drawing
+        for addr in range(16):
+            if self._buttons[addr] is not None:
+                self._buttons[addr].setEnabled(not is_motion)  # prevent accidental button toggles while drawing
         self._refresh_styles()
 
     def selection(self, mode: str | None = None) -> set:
@@ -238,10 +250,14 @@ class ActuatorGrid(QWidget):
         # For Motion, persistent set is typically empty (drawn path). We rely on preview to show actuators.
         sel_motion = set(self._selections.get("motion", set())) | set(self._preview_by_mode.get("motion", set()))
 
-        for i, b in enumerate(self._buttons):
-            in_b = i in sel_buzz
-            in_p = i in sel_pulse
-            in_m = i in sel_motion
+        for addr in range(16):
+            if self._buttons[addr] is None:
+                continue
+                
+            b = self._buttons[addr]
+            in_b = addr in sel_buzz
+            in_p = addr in sel_pulse
+            in_m = addr in sel_motion
 
             # Count how many modes reference this actuator
             count = int(in_b) + int(in_p) + int(in_m)
@@ -261,9 +277,9 @@ class ActuatorGrid(QWidget):
 
             # Dashed border when this actuator is in any *preview* set (helps read Preview)
             in_any_preview = (
-                i in self._preview_by_mode.get("buzz", set())
-                or i in self._preview_by_mode.get("pulse", set())
-                or i in self._preview_by_mode.get("motion", set())
+                addr in self._preview_by_mode.get("buzz", set())
+                or addr in self._preview_by_mode.get("pulse", set())
+                or addr in self._preview_by_mode.get("motion", set())
             )
             style = "dashed" if in_any_preview else "solid"
 
@@ -275,9 +291,10 @@ class ActuatorGrid(QWidget):
     def _actuator_centers(self) -> list[tuple[int, QPointF]]:
         # centers in this widget's coordinates
         centers: list[tuple[int, QPointF]] = []
-        for i, b in enumerate(self._buttons):
-            c = b.geometry().center()
-            centers.append((i, QPointF(float(c.x()), float(c.y()))))
+        for addr in range(16):
+            if self._buttons[addr] is not None:
+                c = self._buttons[addr].geometry().center()
+                centers.append((addr, QPointF(float(c.x()), float(c.y()))))
         return centers
 
     @staticmethod
