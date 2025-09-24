@@ -1,6 +1,6 @@
 #Common parameters
-DUTY = 10
-FREQ = 5
+DUTY = 14
+FREQ = 6
 DURATION = 1000
 PULSE_DURATION = 100
 PAUSE_DURATION = 100
@@ -15,4 +15,4 @@ MOTION_PARAMS = {
 }
 
 MOTION_DURATION = 0.06  # Reduced from 0.06 for faster motion
-MOVEMENT_SPEED = 2000    # Reduced from 2000 for smoother motion (more samples)
+MOVEMENT_SPEED = 800   # Reduced from 2000 for smoother motion (more samples)
