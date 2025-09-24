@@ -1,8 +1,8 @@
 import math
 from typing import List, Tuple, Dict, Optional, Union
 from dataclasses import dataclass
-from core.study_params import MOTION_PARAMS, FREQ, DURATION, DUTY, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, MOTION_DURATION, MOVEMENT_SPEED
-from core.hardware.actuator_layout import LAYOUT_POSITIONS
+from study_params import MOTION_PARAMS, FREQ, DURATION, DUTY, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, MOTION_DURATION, MOVEMENT_SPEED
+from actuator_layout import LAYOUT_POSITIONS
 
 @dataclass
 class MotionCommand:

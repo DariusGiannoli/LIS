@@ -145,12 +145,12 @@ if __name__ == '__main__':
                 }
             ]
             serial_api.send_command_list(commands)
-            time.sleep(3)
+            time.sleep(1)
 
             for c in commands:
                 c['start_or_stop'] = 0
             serial_api.send_command_list(commands)
-            time.sleep(3)
+            time.sleep(1)
             
             serial_api.disconnect_serial_device()
-            time.sleep(3)
+            time.sleep(1)

@@ -239,7 +239,7 @@ class MotionEngine:
 
 
 def generate_coordinate_pattern(coordinates, intensity=DUTY, freq=FREQ, duration=MOTION_DURATION, 
-                              movement_speed=MOVEMENT_SPEED):
+                            movement_speed=MOVEMENT_SPEED):
     """Generate coordinate-based motion patterns with Park et al. algorithm"""
     
     # Check if coordinates is None or empty
