@@ -14,5 +14,5 @@ MOTION_PARAMS = {
     'MIN_TRIANGLE_AREA': 25,
 }
 
-MOTION_DURATION = 0.06
-MOVEMENT_SPEED = 2000 
+MOTION_DURATION = 0.06  # Reduced from 0.06 for faster motion
+MOVEMENT_SPEED = 2000    # Reduced from 2000 for smoother motion (more samples)

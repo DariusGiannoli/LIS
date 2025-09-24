@@ -1,118 +1,108 @@
 import math
 from typing import List, Tuple, Dict, Optional, Union
 from dataclasses import dataclass
-from core.study_params import MOTION_PARAMS, FREQ, DURATION, DUTY, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, MOTION_DURATION
+from core.study_params import MOTION_PARAMS, FREQ, DURATION, DUTY, PULSE_DURATION, PAUSE_DURATION, NUM_PULSES, MOTION_DURATION, MOVEMENT_SPEED
 from core.hardware.actuator_layout import LAYOUT_POSITIONS
 
 @dataclass
 class MotionCommand:
+    """Represents a timed motion command for an actuator"""
     actuator_id: int
     intensity: float
     onset_time: float
     duration: float
 
 class MotionEngine:
-    """Core motion pattern engine using Park et al. (2016) algorithms"""
+    """Core motion pattern engine using Park et al. (2016) algorithms - exact paper implementation"""
     
     def __init__(self):
         self.actuators = LAYOUT_POSITIONS
-        self.MIN_TRIANGLE_AREA = 25  # Minimum triangle area from paper
-        self.MAX_DURATION = 0.07     # Maximum duration constraint
+        self.MAX_DURATION = 0.07     # Maximum duration constraint from paper
+        self.DEBUG = False           # Set to True for debugging
     
     def _distance(self, pos1, pos2):
         """Calculate Euclidean distance between two positions"""
         return math.sqrt((pos1[0] - pos2[0])**2 + (pos1[1] - pos2[1])**2)
     
-    def _triangle_area(self, triangle_positions):
-        """Calculate area of triangle formed by three positions"""
-        p1, p2, p3 = triangle_positions
-        return abs((p1[0]*(p2[1] - p3[1]) + p2[0]*(p3[1] - p1[1]) + p3[0]*(p1[1] - p2[1])) / 2.0)
+    def _find_three_closest_actuators(self, position):
+        """Find the three closest physical tactors around the point (Park et al. Eq. 10)"""
+        distances = []
+        for actuator_id, actuator_pos in self.actuators.items():
+            dist = self._distance(position, actuator_pos)
+            distances.append((dist, actuator_id, actuator_pos))
+        
+        # Sort by distance and take the 3 closest
+        distances.sort(key=lambda x: x[0])
+        closest_three = distances[:3]
+        
+        if self.DEBUG:
+            print(f"Point {position}: closest actuators {[item[1] for item in closest_three]} "
+                  f"at distances {[round(item[0], 1) for item in closest_three]}")
+        
+        return {
+            'actuators': [item[1] for item in closest_three],
+            'positions': [item[2] for item in closest_three],
+            'distances': [item[0] for item in closest_three]
+        }
     
-    def _point_in_triangle(self, point, triangle_positions):
-        """Check if a point lies inside a triangle using barycentric coordinates"""
-        p1, p2, p3 = triangle_positions
-        px, py = point
+    def _is_on_line_segment(self, position, tolerance=1.0):
+        """Check if point is aligned on a line segment between any two actuators"""
+        actuator_items = list(self.actuators.items())
         
-        # Calculate barycentric coordinates
-        denom = (p2[1] - p3[1])*(p1[0] - p3[0]) + (p3[0] - p2[0])*(p1[1] - p3[1])
-        if abs(denom) < 1e-10:  # Degenerate triangle
-            return False
-            
-        a = ((p2[1] - p3[1])*(px - p3[0]) + (p3[0] - p2[0])*(py - p3[1])) / denom
-        b = ((p3[1] - p1[1])*(px - p3[0]) + (p1[0] - p3[0])*(py - p3[1])) / denom
-        c = 1 - a - b
+        for i in range(len(actuator_items)):
+            for j in range(i+1, len(actuator_items)):
+                id1, pos1 = actuator_items[i]
+                id2, pos2 = actuator_items[j]
+                
+                # Calculate distance from point to line segment
+                # Vector from pos1 to pos2
+                line_vec = (pos2[0] - pos1[0], pos2[1] - pos1[1])
+                line_length_sq = line_vec[0]**2 + line_vec[1]**2
+                
+                if line_length_sq == 0:  # pos1 and pos2 are the same point
+                    continue
+                
+                # Vector from pos1 to position
+                point_vec = (position[0] - pos1[0], position[1] - pos1[1])
+                
+                # Project point onto line
+                t = max(0, min(1, (point_vec[0] * line_vec[0] + point_vec[1] * line_vec[1]) / line_length_sq))
+                
+                # Find closest point on line segment
+                closest_on_line = (pos1[0] + t * line_vec[0], pos1[1] + t * line_vec[1])
+                
+                # Check if position is close to this line segment
+                dist_to_line = self._distance(position, closest_on_line)
+                
+                if dist_to_line <= tolerance:
+                    if self.DEBUG:
+                        print(f"Point {position} is on line segment between actuators {id1} and {id2}")
+                    return True, id1, id2, (1-t, t)  # Return weights for 2-actuator phantom
         
-        # Point is inside if all barycentric coordinates are non-negative
-        return a >= -1e-10 and b >= -1e-10 and c >= -1e-10
+        return False, None, None, None
     
-    def _find_best_triangle(self, position):
-        """Find optimal triangle of actuators for phantom sensation"""
-        # First try to find actuators that form a triangle containing the position
-        best_triangle = None
-        min_area = float('inf')
+    def _calculate_2_actuator_intensities(self, phantom_pos, actuator1_id, actuator2_id, weights, desired_intensity):
+        """Calculate 2-actuator phantom intensities using Park et al. Eq. (2)"""
+        pos1 = self.actuators[actuator1_id]
+        pos2 = self.actuators[actuator2_id]
         
-        actuator_ids = list(self.actuators.keys())
+        d1 = self._distance(phantom_pos, pos1)
+        d2 = self._distance(phantom_pos, pos2)
         
-        # Try all combinations of 3 actuators
-        for i in range(len(actuator_ids)):
-            for j in range(i+1, len(actuator_ids)):
-                for k in range(j+1, len(actuator_ids)):
-                    triangle_ids = [actuator_ids[i], actuator_ids[j], actuator_ids[k]]
-                    triangle_positions = [self.actuators[id] for id in triangle_ids]
-                    
-                    # Check if phantom position is inside this triangle
-                    if self._point_in_triangle(position, triangle_positions):
-                        area = self._triangle_area(triangle_positions)
-                        if area > self.MIN_TRIANGLE_AREA and area < min_area:
-                            min_area = area
-                            distances = [self._distance(position, pos) for pos in triangle_positions]
-                            best_triangle = {
-                                'actuators': triangle_ids,
-                                'positions': triangle_positions,
-                                'distances': distances
-                            }
+        # Park et al. Equation (2): A1 = sqrt(d2/(d1+d2)) * Av, A2 = sqrt(d1/(d1+d2)) * Av
+        A1 = math.sqrt(d2 / (d1 + d2)) * desired_intensity
+        A2 = math.sqrt(d1 / (d1 + d2)) * desired_intensity
         
-        # Fallback to 3 closest actuators if no containing triangle found
-        if best_triangle is None:
-            distances = []
-            for actuator_id, actuator_pos in self.actuators.items():
-                dist = self._distance(position, actuator_pos)
-                distances.append((dist, actuator_id, actuator_pos))
-            
-            # Sort by distance and take the 3 closest
-            distances.sort(key=lambda x: x[0])
-            closest_three = distances[:3]
-            
-            # Check if these 3 form a valid triangle
-            triangle_positions = [item[2] for item in closest_three]
-            area = self._triangle_area(triangle_positions)
-            
-            if area < self.MIN_TRIANGLE_AREA:
-                # Try to find a better triangle by replacing the farthest actuator
-                for replacement_idx in range(3, min(len(distances), 6)):
-                    for replace_pos in range(3):
-                        test_triangle = closest_three.copy()
-                        test_triangle[replace_pos] = distances[replacement_idx]
-                        test_positions = [item[2] for item in test_triangle]
-                        test_area = self._triangle_area(test_positions)
-                        
-                        if test_area >= self.MIN_TRIANGLE_AREA:
-                            closest_three = test_triangle
-                            area = test_area
-                            break
-                    if area >= self.MIN_TRIANGLE_AREA:
-                        break
-            
-            best_triangle = {
-                'actuators': [item[1] for item in closest_three],
-                'positions': [item[2] for item in closest_three],
-                'distances': [item[0] for item in closest_three]
-            }
+        if self.DEBUG:
+            print(f"2-actuator phantom: {actuator1_id}={A1:.3f}, {actuator2_id}={A2:.3f}")
         
-        return best_triangle
+        return {
+            'actuators': [actuator1_id, actuator2_id],
+            'intensities': [A1, A2]
+        }
     
-    def _calculate_phantom_intensities(self, phantom_pos, triangle_actuators, desired_intensity, distances=None):
-        """Calculate 3-actuator phantom intensities using Park et al. (2016) energy model"""
+    def _calculate_3_actuator_intensities(self, phantom_pos, triangle_actuators, desired_intensity, distances=None):
+        """Calculate 3-actuator phantom intensities using Park et al. Eq. (10)"""
         if distances is None:
             distances = []
             for act_id in triangle_actuators:
@@ -122,26 +112,58 @@ class MotionEngine:
         else:
             distances = [max(d, 0.1) for d in distances]
         
-        # Park et al. Equation (10): A_i = √(1/d_i / Σ(1/d_j)) × A_v
+        # Park et al. Equation (10): Ai = sqrt(1/di / Σ(1/dj)) × Av
         sum_inv_distances = sum(1/d for d in distances)
         
         intensities = []
-        for dist in distances:
+        for i, dist in enumerate(distances):
             intensity_factor = math.sqrt((1/dist) / sum_inv_distances)
-            # CORRECTED: Multiply by intensity factor, not divide
             intensity = desired_intensity * intensity_factor
-            intensities.append(min(1.0, max(0.0, intensity)))
+            final_intensity = min(1.0, max(0.0, intensity))
+            intensities.append(final_intensity)
+            
+            if self.DEBUG:
+                print(f"  Actuator {triangle_actuators[i]}: distance={dist:.1f}, "
+                      f"factor={intensity_factor:.3f}, intensity={final_intensity:.3f}")
         
         return intensities
     
-    def _resample_trajectory(self, trajectory, max_interval_s=0.07, movement_speed=500):
-        """Resample trajectory to meet Park et al. timing constraints
+    def create_phantom(self, position, intensity):
+        """Create phantom sensation using exact Park et al. (2016) algorithm"""
         
-        Args:
-            trajectory: List of (x, y) coordinate tuples
-            max_interval_s: Maximum time interval between samples (default 0.07s from paper)
-            movement_speed: Assumed movement speed in pixels/second (higher = fewer samples)
-        """
+        # Check if position is exactly at an actuator location
+        for actuator_id, actuator_pos in self.actuators.items():
+            if self._distance(position, actuator_pos) < 1.0:  # Within 1 unit
+                if self.DEBUG:
+                    print(f"Direct actuator {actuator_id} at {actuator_pos}")
+                return {
+                    'actuators': [actuator_id],
+                    'intensities': [intensity]
+                }
+        
+        # Check if point is on a line segment (use 2-actuator phantom)
+        is_on_line, id1, id2, weights = self._is_on_line_segment(position)
+        if is_on_line:
+            return self._calculate_2_actuator_intensities(position, id1, id2, weights, intensity)
+        
+        # Use 3-actuator phantom: "the three closest physical tactors around the point are selected"
+        closest_three = self._find_three_closest_actuators(position)
+        
+        # Calculate intensities using Park et al. Equation (10)
+        intensities = self._calculate_3_actuator_intensities(
+            position, 
+            closest_three['actuators'], 
+            intensity,
+            distances=closest_three['distances']
+        )
+        
+        return {
+            'actuators': closest_three['actuators'],
+            'intensities': intensities
+        }
+    
+    def _resample_trajectory(self, trajectory, max_interval_s=0.07, movement_speed = MOVEMENT_SPEED):
+        """Resample trajectory to meet Park et al. timing constraints"""
         if len(trajectory) < 2:
             return trajectory
         
@@ -155,7 +177,7 @@ class MotionEngine:
             distance = self._distance(prev_point, curr_point)
             
             # Estimate required samples based on distance and timing
-            estimated_time = distance / movement_speed  # Configurable speed
+            estimated_time = distance / movement_speed
             
             if estimated_time > max_interval_s:
                 # Need to add intermediate points
@@ -172,53 +194,16 @@ class MotionEngine:
         
         return resampled
     
-    def create_phantom(self, position, intensity):
-        """Create phantom sensation at position using Park et al. algorithm"""
-        
-        # Check if position is exactly at an actuator location
-        for actuator_id, actuator_pos in self.actuators.items():
-            if self._distance(position, actuator_pos) < 1.0:  # Within 1 unit
-                return {
-                    'actuators': [actuator_id],
-                    'intensities': [intensity]
-                }
-        
-        # Find the optimal triangle for phantom sensation
-        triangle = self._find_best_triangle(position)
-        if not triangle:
-            return None
-        
-        # Calculate phantom intensities using corrected Park et al. formula
-        intensities = self._calculate_phantom_intensities(
-            position, 
-            triangle['actuators'], 
-            intensity,
-            distances=triangle['distances']
-        )
-        
-        return {
-            'actuators': triangle['actuators'],
-            'intensities': intensities
-        }
-    
     def generate_motion_commands(self, trajectory, intensity=0.8, base_duration=0.06, 
-                               movement_speed=500, max_sampling_interval=0.07):
-        """Generate motion commands using Park et al. (2016) algorithm
-        
-        Args:
-            trajectory: List of (x, y) coordinate tuples
-            intensity: Phantom intensity (0-1)
-            base_duration: Duration per phantom (max 0.07s)
-            movement_speed: Movement speed in pixels/second (higher = fewer samples)
-            max_sampling_interval: Max time between samples (0.07s from paper)
-        """
+                               movement_speed=MOVEMENT_SPEED, max_sampling_interval=0.07):
+        """Generate motion commands using exact Park et al. (2016) algorithm"""
         if len(trajectory) < 1:
             return []
         
-        # Enforce duration constraint from paper
+        # Enforce duration constraint from paper: duration ≤ 0.07 s
         duration = min(base_duration, self.MAX_DURATION)
         
-        # Resample trajectory to meet timing constraints
+        # "points on the path are sampled at a rate less than or equal to 0.07 s"
         resampled_trajectory = self._resample_trajectory(
             trajectory, 
             max_interval_s=max_sampling_interval,
@@ -252,8 +237,9 @@ class MotionEngine:
         
         return commands
 
+
 def generate_coordinate_pattern(coordinates, intensity=DUTY, freq=FREQ, duration=MOTION_DURATION, 
-                              movement_speed=500):
+                              movement_speed=MOVEMENT_SPEED):
     """Generate coordinate-based motion patterns with Park et al. algorithm"""
     
     # Check if coordinates is None or empty
@@ -398,8 +384,8 @@ def generate_pulse_pattern(devices, duty=DUTY, freq=FREQ, pulse_duration=PULSE_D
         'steps': steps
     }
 
-def generate_motion_pattern(devices, intensity=DUTY, freq=FREQ, duration=0.06, 
-                          movement_speed=500, max_sampling_interval=0.07, **kwargs):
+def generate_motion_pattern(devices, intensity=DUTY, freq=FREQ, duration=0.04, 
+                          movement_speed=MOVEMENT_SPEED, max_sampling_interval=0.05, **kwargs):
     """Generate motion pattern using Park et al. (2016) algorithm
     
     Args:
