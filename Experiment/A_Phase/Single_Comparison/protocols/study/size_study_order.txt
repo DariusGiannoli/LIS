@@ -1,0 +1,165 @@
+Randomized Size Study Pattern Order
+==================================================
+
+ 1. small_v_line_static
+    Shape: v_line, Size: small, Type: static
+
+ 2. small_circle_motion
+    Shape: circle, Size: small, Type: motion
+
+ 3. one_h_line_pulse
+    Shape: h_line, Size: one, Type: pulse
+
+ 4. small_h_line_static
+    Shape: h_line, Size: small, Type: static
+
+ 5. small_cross_static
+    Shape: cross, Size: small, Type: static
+
+ 6. big_cross_static
+    Shape: cross, Size: big, Type: static
+
+ 7. small_v_line_motion
+    Shape: v_line, Size: small, Type: motion
+
+ 8. one_h_line_static
+    Shape: h_line, Size: one, Type: static
+
+ 9. big_cross_motion
+    Shape: cross, Size: big, Type: motion
+
+10. medium_h_line_pulse
+    Shape: h_line, Size: medium, Type: pulse
+
+11. big_square_pulse
+    Shape: square, Size: big, Type: pulse
+
+12. medium_v_line_pulse
+    Shape: v_line, Size: medium, Type: pulse
+
+13. big_h_line_motion
+    Shape: h_line, Size: big, Type: motion
+
+14. big_cross_pulse
+    Shape: cross, Size: big, Type: pulse
+
+15. one_v_line_motion
+    Shape: v_line, Size: one, Type: motion
+
+16. small_l_shape_pulse
+    Shape: l_shape, Size: small, Type: pulse
+
+17. small_square_motion
+    Shape: square, Size: small, Type: motion
+
+18. medium_circle_static
+    Shape: circle, Size: medium, Type: static
+
+19. big_v_line_pulse
+    Shape: v_line, Size: big, Type: pulse
+
+20. medium_v_line_static
+    Shape: v_line, Size: medium, Type: static
+
+21. big_square_static
+    Shape: square, Size: big, Type: static
+
+22. small_square_pulse
+    Shape: square, Size: small, Type: pulse
+
+23. big_h_line_static
+    Shape: h_line, Size: big, Type: static
+
+24. one_v_line_static
+    Shape: v_line, Size: one, Type: static
+
+25. big_circle_motion
+    Shape: circle, Size: big, Type: motion
+
+26. big_l_shape_motion
+    Shape: l_shape, Size: big, Type: motion
+
+27. big_l_shape_static
+    Shape: l_shape, Size: big, Type: static
+
+28. big_l_shape_pulse
+    Shape: l_shape, Size: big, Type: pulse
+
+29. medium_l_shape_static
+    Shape: l_shape, Size: medium, Type: static
+
+30. medium_v_line_motion
+    Shape: v_line, Size: medium, Type: motion
+
+31. small_square_static
+    Shape: square, Size: small, Type: static
+
+32. small_l_shape_static
+    Shape: l_shape, Size: small, Type: static
+
+33. medium_circle_motion
+    Shape: circle, Size: medium, Type: motion
+
+34. small_h_line_motion
+    Shape: h_line, Size: small, Type: motion
+
+35. big_v_line_motion
+    Shape: v_line, Size: big, Type: motion
+
+36. medium_l_shape_motion
+    Shape: l_shape, Size: medium, Type: motion
+
+37. medium_h_line_motion
+    Shape: h_line, Size: medium, Type: motion
+
+38. big_h_line_pulse
+    Shape: h_line, Size: big, Type: pulse
+
+39. small_circle_pulse
+    Shape: circle, Size: small, Type: pulse
+
+40. small_v_line_pulse
+    Shape: v_line, Size: small, Type: pulse
+
+41. small_circle_static
+    Shape: circle, Size: small, Type: static
+
+42. small_cross_pulse
+    Shape: cross, Size: small, Type: pulse
+
+43. small_h_line_pulse
+    Shape: h_line, Size: small, Type: pulse
+
+44. big_v_line_static
+    Shape: v_line, Size: big, Type: static
+
+45. big_circle_pulse
+    Shape: circle, Size: big, Type: pulse
+
+46. one_h_line_motion
+    Shape: h_line, Size: one, Type: motion
+
+47. medium_h_line_static
+    Shape: h_line, Size: medium, Type: static
+
+48. medium_l_shape_pulse
+    Shape: l_shape, Size: medium, Type: pulse
+
+49. small_cross_motion
+    Shape: cross, Size: small, Type: motion
+
+50. big_square_motion
+    Shape: square, Size: big, Type: motion
+
+51. big_circle_static
+    Shape: circle, Size: big, Type: static
+
+52. medium_circle_pulse
+    Shape: circle, Size: medium, Type: pulse
+
+53. one_v_line_pulse
+    Shape: v_line, Size: one, Type: pulse
+
+54. small_l_shape_motion
+    Shape: l_shape, Size: small, Type: motion
+

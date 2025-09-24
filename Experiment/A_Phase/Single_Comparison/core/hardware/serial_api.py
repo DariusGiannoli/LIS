@@ -110,7 +110,7 @@ if __name__ == '__main__':
     
     # Example usage with GUI interaction:
     if device_names:
-        if serial_api.connect_serial_device(device_names[0]):
+        if serial_api.connect_serial_device(device_names[2]):
             serial_api.send_command(1, 7, 2, 1)
             time.sleep(3)
 
@@ -121,6 +121,12 @@ if __name__ == '__main__':
             commands = [
                 {
                     "addr": 0,
+                    "duty": 7,
+                    "freq": 2,
+                    "start_or_stop": 1
+                },
+                {
+                    "addr": 1,
                     "duty": 7,
                     "freq": 2,
                     "start_or_stop": 1
