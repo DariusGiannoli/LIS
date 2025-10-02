@@ -1,0 +1,57 @@
+Randomized Size Study Pattern Order
+==================================================
+
+ 1. big_circle_motion
+    Shape: circle, Size: big, Type: motion
+
+ 2. small_v_line_motion
+    Shape: v_line, Size: small, Type: motion
+
+ 3. big_cross_motion
+    Shape: cross, Size: big, Type: motion
+
+ 4. medium_h_line_motion
+    Shape: h_line, Size: medium, Type: motion
+
+ 5. small_h_line_motion
+    Shape: h_line, Size: small, Type: motion
+
+ 6. one_v_line_motion
+    Shape: v_line, Size: one, Type: motion
+
+ 7. small_cross_motion
+    Shape: cross, Size: small, Type: motion
+
+ 8. small_circle_motion
+    Shape: circle, Size: small, Type: motion
+
+ 9. big_h_line_motion
+    Shape: h_line, Size: big, Type: motion
+
+10. medium_circle_motion
+    Shape: circle, Size: medium, Type: motion
+
+11. big_v_line_motion
+    Shape: v_line, Size: big, Type: motion
+
+12. small_square_motion
+    Shape: square, Size: small, Type: motion
+
+13. medium_l_shape_motion
+    Shape: l_shape, Size: medium, Type: motion
+
+14. one_h_line_motion
+    Shape: h_line, Size: one, Type: motion
+
+15. medium_v_line_motion
+    Shape: v_line, Size: medium, Type: motion
+
+16. big_l_shape_motion
+    Shape: l_shape, Size: big, Type: motion
+
+17. small_l_shape_motion
+    Shape: l_shape, Size: small, Type: motion
+
+18. big_square_motion
+    Shape: square, Size: big, Type: motion
+

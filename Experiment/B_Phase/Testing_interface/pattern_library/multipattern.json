@@ -1,0 +1,1426 @@
+{
+  "name": "multipattern",
+  "type": "multi",
+  "devices": {
+    "buzz": [
+      0,
+      7,
+      8,
+      15
+    ],
+    "pulse": [
+      3,
+      4,
+      11,
+      12
+    ],
+    "motion": [
+      5,
+      9
+    ]
+  },
+  "params": {
+    "buzz": {
+      "duty": 14,
+      "freq": 6,
+      "duration": 1000
+    },
+    "pulse": {
+      "duty": 14,
+      "freq": 6,
+      "pulse_duration": 100,
+      "pause_duration": 100,
+      "num_pulses": 5
+    },
+    "motion": {
+      "duty": 14,
+      "freq": 6,
+      "motion_duration": 0.06,
+      "movement_speed": 800
+    }
+  },
+  "data": {
+    "steps": [
+      {
+        "commands": [
+          {
+            "addr": 0,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 7,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 8,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 15,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 3,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 4,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 11,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 12,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 5,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          }
+        ],
+        "delay_after_ms": 60
+      },
+      {
+        "commands": [
+          {
+            "addr": 5,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          }
+        ],
+        "delay_after_ms": 6
+      },
+      {
+        "commands": [
+          {
+            "addr": 1,
+            "duty": 8,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 10,
+            "duty": 11,
+            "freq": 6,
+            "start_or_stop": 1
+          }
+        ],
+        "delay_after_ms": 34
+      },
+      {
+        "commands": [
+          {
+            "addr": 3,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 4,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 11,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 12,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          }
+        ],
+        "delay_after_ms": 26
+      },
+      {
+        "commands": [
+          {
+            "addr": 1,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 10,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          }
+        ],
+        "delay_after_ms": 6
+      },
+      {
+        "commands": [
+          {
+            "addr": 3,
+            "duty": 5,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 9,
+            "duty": 12,
+            "freq": 6,
+            "start_or_stop": 1
+          }
+        ],
+        "delay_after_ms": 60
+      },
+      {
+        "commands": [
+          {
+            "addr": 3,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 9,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          }
+        ],
+        "delay_after_ms": 6
+      },
+      {
+        "commands": [
+          {
+            "addr": 9,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          }
+        ],
+        "delay_after_ms": 2
+      },
+      {
+        "commands": [
+          {
+            "addr": 3,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 4,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 11,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 12,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          }
+        ],
+        "delay_after_ms": 58
+      },
+      {
+        "commands": [
+          {
+            "addr": 9,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          }
+        ],
+        "delay_after_ms": 42
+      },
+      {
+        "commands": [
+          {
+            "addr": 3,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 4,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 11,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 12,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          }
+        ],
+        "delay_after_ms": 100
+      },
+      {
+        "commands": [
+          {
+            "addr": 3,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 4,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 11,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 12,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          }
+        ],
+        "delay_after_ms": 100
+      },
+      {
+        "commands": [
+          {
+            "addr": 3,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 4,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 11,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 12,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          }
+        ],
+        "delay_after_ms": 100
+      },
+      {
+        "commands": [
+          {
+            "addr": 3,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 4,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 11,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 12,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          }
+        ],
+        "delay_after_ms": 100
+      },
+      {
+        "commands": [
+          {
+            "addr": 3,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 4,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 11,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 12,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          }
+        ],
+        "delay_after_ms": 100
+      },
+      {
+        "commands": [
+          {
+            "addr": 3,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 4,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 11,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 12,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          }
+        ],
+        "delay_after_ms": 100
+      },
+      {
+        "commands": [
+          {
+            "addr": 3,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 4,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 11,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 12,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          }
+        ],
+        "delay_after_ms": 100
+      },
+      {
+        "commands": [
+          {
+            "addr": 0,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 7,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 8,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 15,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          }
+        ],
+        "delay_after_ms": 0
+      }
+    ]
+  },
+  "data_merged": {
+    "steps": [
+      {
+        "commands": [
+          {
+            "addr": 0,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 7,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 8,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 15,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 3,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 4,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 11,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 12,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 5,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          }
+        ],
+        "delay_after_ms": 60
+      },
+      {
+        "commands": [
+          {
+            "addr": 5,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          }
+        ],
+        "delay_after_ms": 6
+      },
+      {
+        "commands": [
+          {
+            "addr": 1,
+            "duty": 8,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 10,
+            "duty": 11,
+            "freq": 6,
+            "start_or_stop": 1
+          }
+        ],
+        "delay_after_ms": 34
+      },
+      {
+        "commands": [
+          {
+            "addr": 3,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 4,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 11,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 12,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          }
+        ],
+        "delay_after_ms": 26
+      },
+      {
+        "commands": [
+          {
+            "addr": 1,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 10,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          }
+        ],
+        "delay_after_ms": 6
+      },
+      {
+        "commands": [
+          {
+            "addr": 3,
+            "duty": 5,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 9,
+            "duty": 12,
+            "freq": 6,
+            "start_or_stop": 1
+          }
+        ],
+        "delay_after_ms": 60
+      },
+      {
+        "commands": [
+          {
+            "addr": 3,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 9,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          }
+        ],
+        "delay_after_ms": 6
+      },
+      {
+        "commands": [
+          {
+            "addr": 9,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          }
+        ],
+        "delay_after_ms": 2
+      },
+      {
+        "commands": [
+          {
+            "addr": 3,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 4,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 11,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 12,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          }
+        ],
+        "delay_after_ms": 58
+      },
+      {
+        "commands": [
+          {
+            "addr": 9,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          }
+        ],
+        "delay_after_ms": 42
+      },
+      {
+        "commands": [
+          {
+            "addr": 3,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 4,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 11,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 12,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          }
+        ],
+        "delay_after_ms": 100
+      },
+      {
+        "commands": [
+          {
+            "addr": 3,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 4,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 11,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 12,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          }
+        ],
+        "delay_after_ms": 100
+      },
+      {
+        "commands": [
+          {
+            "addr": 3,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 4,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 11,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 12,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          }
+        ],
+        "delay_after_ms": 100
+      },
+      {
+        "commands": [
+          {
+            "addr": 3,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 4,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 11,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 12,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          }
+        ],
+        "delay_after_ms": 100
+      },
+      {
+        "commands": [
+          {
+            "addr": 3,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 4,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 11,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 12,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          }
+        ],
+        "delay_after_ms": 100
+      },
+      {
+        "commands": [
+          {
+            "addr": 3,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 4,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 11,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 12,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          }
+        ],
+        "delay_after_ms": 100
+      },
+      {
+        "commands": [
+          {
+            "addr": 3,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 4,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 11,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 12,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          }
+        ],
+        "delay_after_ms": 100
+      },
+      {
+        "commands": [
+          {
+            "addr": 0,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 7,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 8,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 15,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          }
+        ],
+        "delay_after_ms": 0
+      }
+    ]
+  },
+  "data_by_type": {
+    "buzz": {
+      "steps": [
+        {
+          "commands": [
+            {
+              "addr": 0,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            },
+            {
+              "addr": 7,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            },
+            {
+              "addr": 8,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            },
+            {
+              "addr": 15,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            }
+          ],
+          "delay_after_ms": 1000
+        },
+        {
+          "commands": [
+            {
+              "addr": 0,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            },
+            {
+              "addr": 7,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            },
+            {
+              "addr": 8,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            },
+            {
+              "addr": 15,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            }
+          ],
+          "delay_after_ms": 0
+        }
+      ]
+    },
+    "pulse": {
+      "steps": [
+        {
+          "commands": [
+            {
+              "addr": 3,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            },
+            {
+              "addr": 4,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            },
+            {
+              "addr": 11,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            },
+            {
+              "addr": 12,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            }
+          ],
+          "delay_after_ms": 100
+        },
+        {
+          "commands": [
+            {
+              "addr": 3,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            },
+            {
+              "addr": 4,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            },
+            {
+              "addr": 11,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            },
+            {
+              "addr": 12,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            }
+          ],
+          "delay_after_ms": 100
+        },
+        {
+          "commands": [
+            {
+              "addr": 3,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            },
+            {
+              "addr": 4,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            },
+            {
+              "addr": 11,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            },
+            {
+              "addr": 12,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            }
+          ],
+          "delay_after_ms": 100
+        },
+        {
+          "commands": [
+            {
+              "addr": 3,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            },
+            {
+              "addr": 4,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            },
+            {
+              "addr": 11,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            },
+            {
+              "addr": 12,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            }
+          ],
+          "delay_after_ms": 100
+        },
+        {
+          "commands": [
+            {
+              "addr": 3,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            },
+            {
+              "addr": 4,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            },
+            {
+              "addr": 11,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            },
+            {
+              "addr": 12,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            }
+          ],
+          "delay_after_ms": 100
+        },
+        {
+          "commands": [
+            {
+              "addr": 3,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            },
+            {
+              "addr": 4,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            },
+            {
+              "addr": 11,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            },
+            {
+              "addr": 12,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            }
+          ],
+          "delay_after_ms": 100
+        },
+        {
+          "commands": [
+            {
+              "addr": 3,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            },
+            {
+              "addr": 4,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            },
+            {
+              "addr": 11,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            },
+            {
+              "addr": 12,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            }
+          ],
+          "delay_after_ms": 100
+        },
+        {
+          "commands": [
+            {
+              "addr": 3,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            },
+            {
+              "addr": 4,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            },
+            {
+              "addr": 11,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            },
+            {
+              "addr": 12,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            }
+          ],
+          "delay_after_ms": 100
+        },
+        {
+          "commands": [
+            {
+              "addr": 3,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            },
+            {
+              "addr": 4,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            },
+            {
+              "addr": 11,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            },
+            {
+              "addr": 12,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            }
+          ],
+          "delay_after_ms": 100
+        },
+        {
+          "commands": [
+            {
+              "addr": 3,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            },
+            {
+              "addr": 4,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            },
+            {
+              "addr": 11,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            },
+            {
+              "addr": 12,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            }
+          ],
+          "delay_after_ms": 0
+        }
+      ]
+    },
+    "motion": {
+      "steps": [
+        {
+          "commands": [
+            {
+              "addr": 5,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            }
+          ],
+          "delay_after_ms": 60
+        },
+        {
+          "commands": [
+            {
+              "addr": 5,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            }
+          ],
+          "delay_after_ms": 6
+        },
+        {
+          "commands": [
+            {
+              "addr": 1,
+              "duty": 8,
+              "freq": 6,
+              "start_or_stop": 1
+            },
+            {
+              "addr": 10,
+              "duty": 11,
+              "freq": 6,
+              "start_or_stop": 1
+            }
+          ],
+          "delay_after_ms": 60
+        },
+        {
+          "commands": [
+            {
+              "addr": 1,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            },
+            {
+              "addr": 10,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            }
+          ],
+          "delay_after_ms": 6
+        },
+        {
+          "commands": [
+            {
+              "addr": 3,
+              "duty": 5,
+              "freq": 6,
+              "start_or_stop": 1
+            },
+            {
+              "addr": 9,
+              "duty": 12,
+              "freq": 6,
+              "start_or_stop": 1
+            }
+          ],
+          "delay_after_ms": 60
+        },
+        {
+          "commands": [
+            {
+              "addr": 3,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            },
+            {
+              "addr": 9,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            }
+          ],
+          "delay_after_ms": 6
+        },
+        {
+          "commands": [
+            {
+              "addr": 9,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            }
+          ],
+          "delay_after_ms": 60
+        },
+        {
+          "commands": [
+            {
+              "addr": 9,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            }
+          ],
+          "delay_after_ms": 0
+        }
+      ]
+    }
+  },
+  "created_at": "2025-09-29 19:42:13",
+  "version": 2
+}

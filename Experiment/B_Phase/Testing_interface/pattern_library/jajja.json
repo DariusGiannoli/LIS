@@ -1,0 +1,135 @@
+{
+  "name": "jajja",
+  "type": "multi",
+  "devices": {
+    "buzz": [
+      0,
+      1
+    ]
+  },
+  "params": {
+    "buzz": {
+      "duty": 14,
+      "freq": 6,
+      "duration": 1000
+    }
+  },
+  "data": {
+    "steps": [
+      {
+        "commands": [
+          {
+            "addr": 0,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 1,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          }
+        ],
+        "delay_after_ms": 1000
+      },
+      {
+        "commands": [
+          {
+            "addr": 0,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 1,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          }
+        ],
+        "delay_after_ms": 0
+      }
+    ]
+  },
+  "data_merged": {
+    "steps": [
+      {
+        "commands": [
+          {
+            "addr": 0,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          },
+          {
+            "addr": 1,
+            "duty": 14,
+            "freq": 6,
+            "start_or_stop": 1
+          }
+        ],
+        "delay_after_ms": 1000
+      },
+      {
+        "commands": [
+          {
+            "addr": 0,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          },
+          {
+            "addr": 1,
+            "duty": 0,
+            "freq": 0,
+            "start_or_stop": 0
+          }
+        ],
+        "delay_after_ms": 0
+      }
+    ]
+  },
+  "data_by_type": {
+    "buzz": {
+      "steps": [
+        {
+          "commands": [
+            {
+              "addr": 0,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            },
+            {
+              "addr": 1,
+              "duty": 14,
+              "freq": 6,
+              "start_or_stop": 1
+            }
+          ],
+          "delay_after_ms": 1000
+        },
+        {
+          "commands": [
+            {
+              "addr": 0,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            },
+            {
+              "addr": 1,
+              "duty": 0,
+              "freq": 0,
+              "start_or_stop": 0
+            }
+          ],
+          "delay_after_ms": 0
+        }
+      ]
+    }
+  },
+  "created_at": "2025-09-29 20:17:25",
+  "version": 2
+}

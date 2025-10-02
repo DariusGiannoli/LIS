@@ -1,0 +1,79 @@
+/* style.qss — modern, minimal, dark */
+
+* { font-family: -apple-system, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+
+QWidget {
+  background: #1b1d21;
+  color: #e8eaed;
+}
+
+QGroupBox {
+  border: 1px solid #2a2d34;
+  border-radius: 10px;
+  margin-top: 16px;
+  background: #202329;
+}
+QGroupBox::title {
+  subcontrol-origin: margin;
+  subcontrol-position: top left;
+  padding: 0 6px;
+  color: #9aa0a6;
+}
+
+QLabel { color: #e8eaed; }
+
+QPushButton {
+  border: 1px solid #2f343c;
+  background: #2a2f36;
+  padding: 6px 10px;
+  border-radius: 10px;
+}
+QPushButton:hover { background: #323740; }
+QPushButton:pressed { background: #3a404a; }
+QPushButton:disabled { color: #7f848c; border-color: #2a2f36; background: #22262c; }
+QPushButton:checked { background: #3b5bfd; border-color: #3b5bfd; color: white; }
+
+QComboBox, QSpinBox, QDoubleSpinBox, QLineEdit {
+  border: 1px solid #2f343c;
+  background: #23272e;
+  padding: 4px 6px;
+  border-radius: 8px;
+}
+QComboBox::drop-down { border: none; }
+
+QListWidget {
+  border: 1px solid #2a2d34;
+  background: #1f2228;
+  border-radius: 8px;
+}
+
+QMenuBar {
+  background: #1b1d21;
+  color: #e8eaed;
+}
+QMenuBar::item:selected { background: #2a2f36; }
+
+QMenu {
+  background: #22252b;
+  color: #e8eaed;
+  border: 1px solid #2f343c;
+  padding: 6px;
+}
+QMenu::item:selected { background: #323740; border-radius: 6px; }
+
+QSplitter::handle {
+  background: #2a2d34;
+  width: 6px;
+}
+QSplitter::handle:hover { background: #3a3f47; }
+
+/* Subtle scrollbars */
+QScrollBar:vertical, QScrollBar:horizontal {
+  background: transparent;
+  margin: 4px;
+}
+QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
+  background: #3a3f47;
+  border-radius: 6px;
+}
+QScrollBar::add-line, QScrollBar::sub-line { height: 0; width: 0; }
