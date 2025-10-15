@@ -1,181 +1,84 @@
-// slave.ino — ESP32-S3 (Slave)
-// ESP-NOW haptic receiver with PWM that compiles on Arduino-ESP32 v2.x and v3.x.
-//
-// If v3 is present => uses ledcAttach(pin, freq, res) + ledcWrite(pin, duty).
-// Else => uses analogWriteResolution/analogWriteFrequency/analogWrite(pin, duty).
-
-#include <Arduino.h>
-#include <WiFi.h>
 #include <esp_now.h>
-#include <esp_idf_version.h>
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5,0,0)
-  #include <esp_wifi_types.h>   // esp_now_recv_info_t
-#endif
+#include <WiFi.h>
+#include <SoftwareSerial.h>
 
-// ---------- Hardware config (EDIT PINS TO MATCH YOUR WIRING) ----------
-const int ACTUATOR_PINS[] = {
-  // Choose PWM-capable pins for your QT Py ESP32-S3
-  // Example placeholders; change to your actual pins:
-  5, 6, 7, 9, 10, 11
-};
-const int NUM_ACTUATORS = sizeof(ACTUATOR_PINS) / sizeof(ACTUATOR_PINS[0]);
+// This is the motor control logic from your control_unit.ino
+const int subchain_pins[4] = {18, 17, 9, 8};
+const int subchain_num = 4;
+ESPSoftwareSerial::UART serial_group[4];
 
-const int PWM_FREQ_HZ  = 200;  // ERM ~200-300; LRA often ~175-260
-const int PWM_RES_BITS = 12;   // 0..(2^bits-1)
-// ---------------------------------------------------------------------
-
-// --------- Version detection for Arduino-ESP32 core ----------
-#if defined(ESP_ARDUINO_VERSION_MAJOR) && (ESP_ARDUINO_VERSION_MAJOR >= 3)
-  #define USE_LEDC_V3 1
-#else
-  #define USE_LEDC_V3 0
-#endif
-// ------------------------------------------------------------
-
-// ---- Message definition from Master ----
-typedef struct __attribute__((packed)) {
-  uint8_t  magic;        // 0xA5
-  uint8_t  channel;      // 0..N-1 or 255=ALL
-  uint8_t  duty_255;     // 0..255
-  uint16_t duration_ms;  // little-endian
-} HapticMsg;
-
-struct ActivePulse {
-  bool     active = false;
-  uint32_t end_ms = 0;
-  uint16_t duty_12b = 0;
-};
-
-ActivePulse pulses[16]; // safety headroom
-
-inline uint16_t duty255_to_nbits(uint8_t d, int bits) {
-  const uint32_t maxv = (1u << bits) - 1u;
-  return (uint16_t)((uint32_t)d * maxv / 255u);
-}
-
-// -------------- PWM wrappers (v3 LEDC or portable analogWrite) --------------
-static void pwmGlobalInit() {
-#if USE_LEDC_V3
-  // Nothing global needed for v3 LEDC; set per pin in attach.
-#else
-  // Portable path
-  analogWriteResolution(PWM_RES_BITS);
-  // Some cores provide per-pin freq; if not, this call may be global or a no-op.
-  // We'll still try per-pin below before first write.
-#endif
-}
-
-static void pwmAttachPinIdx(int idx) {
-  const int pin = ACTUATOR_PINS[idx];
-#if USE_LEDC_V3
-  // New API: attach per pin with freq & resolution
-  ledcAttach(pin, PWM_FREQ_HZ, PWM_RES_BITS);
-  ledcWrite(pin, 0);
-#else
-  // Portable API: ensure freq for this pin, then write 0
-  analogWriteFrequency(pin, PWM_FREQ_HZ); // okay if global/no-op on some cores
-  analogWrite(pin, 0);
-#endif
-}
-
-static void pwmWriteIdx(int idx, uint16_t duty) {
-  const int pin = ACTUATOR_PINS[idx];
-#if USE_LEDC_V3
-  ledcWrite(pin, duty);
-#else
-  analogWrite(pin, duty);
-#endif
-}
-// -----------------------------------------------------------------------------
-
-void setActuatorDuty(int ch, uint16_t duty12) {
-  if (ch < 0 || ch >= NUM_ACTUATORS) return;
-  pwmWriteIdx(ch, duty12);
-}
-
-void startPulse(int ch, uint16_t duty12, uint16_t dur_ms) {
-  if (ch < 0 || ch >= NUM_ACTUATORS) return;
-  setActuatorDuty(ch, duty12);
-  pulses[ch].active   = (dur_ms > 0);
-  pulses[ch].duty_12b = duty12;
-  pulses[ch].end_ms   = millis() + (uint32_t)dur_ms;
-}
-
-void stopIfExpired() {
-  const uint32_t now = millis();
-  for (int ch = 0; ch < NUM_ACTUATORS; ++ch) {
-    if (pulses[ch].active && ((int32_t)(now - pulses[ch].end_ms) >= 0)) {
-      pulses[ch].active = false;
-      setActuatorDuty(ch, 0);
-    }
-  }
-}
-
-// ---- Receive callback (IDF version compatible) ----
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5,0,0)
-void onRecv(const esp_now_recv_info_t *info, const uint8_t *incomingData, int len) {
-#else
-void onRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
-#endif
-  if (len != sizeof(HapticMsg)) {
-    Serial.print(F("[ESP-NOW] Bad size: ")); Serial.println(len);
-    return;
-  }
-  HapticMsg msg;
-  memcpy(&msg, incomingData, sizeof(msg));
-  if (msg.magic != 0xA5) {
-    Serial.println(F("[ESP-NOW] Bad magic"));
-    return;
-  }
-
-  const uint16_t duty12 = duty255_to_nbits(msg.duty_255, PWM_RES_BITS);
-
-  if (msg.channel == 255) { // ALL
-    for (int ch = 0; ch < NUM_ACTUATORS; ++ch) {
-      startPulse(ch, duty12, msg.duration_ms);
-    }
-    Serial.print(F("RX: ALL duty=")); Serial.print(msg.duty_255);
-    Serial.print(F(" dur=")); Serial.print(msg.duration_ms);
-    Serial.println(F("ms"));
-  } else {
-    const int ch = (int)msg.channel;
-    if (ch < 0 || ch >= NUM_ACTUATORS) {
-      Serial.println(F("[ESP-NOW] Channel OOR"));
-      return;
-    }
-    startPulse(ch, duty12, msg.duration_ms);
-    Serial.print(F("RX: ch=")); Serial.print(ch);
-    Serial.print(F(" duty=")); Serial.print(msg.duty_255);
-    Serial.print(F(" dur="));  Serial.print(msg.duration_ms);
-    Serial.println(F("ms"));
-  }
+// Callback function that processes data received from the master
+void OnDataRecv(const esp_now_recv_info_t *recv_info, const uint8_t *incomingData, int len) {
+  // The received data is a motor command packet, process it directly.
+  processMotorCommands(incomingData, len);
 }
 
 void setup() {
-  Serial.begin(500000);
-  delay(200);
-  Serial.println();
-  Serial.println(F("=== Slave — ESP-NOW Haptics ==="));
-  Serial.print(F("Slave STA MAC: "));
-  Serial.println(WiFi.macAddress());
+  // USB Serial for debugging messages
+  Serial.begin(115200);
 
-  pwmGlobalInit();
-  for (int ch = 0; ch < NUM_ACTUATORS; ++ch) {
-    pwmAttachPinIdx(ch);
+  // --- Motor Controller Setup (from control_unit.ino) ---
+  for (int i = 0; i < subchain_num; ++i) {
+    serial_group[i].begin(115200, SWSERIAL_8E1, -1, subchain_pins[i], false);
+    serial_group[i].enableIntTx(false);
+    if (!serial_group[i]) {
+      Serial.println("Invalid EspSoftwareSerial pin configuration");
+    }
+    delay(100);
   }
+  Serial.println("Motor control pins initialized.");
 
+  // --- ESP-NOW Setup ---
   WiFi.mode(WIFI_STA);
-  WiFi.disconnect(true, true); // avoid AP/channel lock
-
   if (esp_now_init() != ESP_OK) {
-    Serial.println(F("[ESP-NOW] Init failed"));
-    while (true) { delay(1000); }
+    Serial.println("Error initializing ESP-NOW");
+    return;
   }
-  esp_now_register_recv_cb(onRecv);
-  Serial.println(F("[ESP-NOW] Ready"));
+  
+  // Register the receive callback function
+  esp_now_register_recv_cb(OnDataRecv);
+  Serial.println("Slave Board Ready. Waiting for motor commands...");
 }
 
 void loop() {
-  stopIfExpired();
-  delay(1);
+  // The loop is empty because all work is handled by the OnDataRecv callback.
+}
+
+// --- Motor Command Processing Logic (from control_unit.ino) ---
+
+// This function decodes the byte packet received from the master
+void processMotorCommands(const uint8_t* data, int length) {
+  if (length % 3 == 0) {
+    for (int i = 0; i < length; i += 3) {
+      uint8_t byte1 = data[i];
+      uint8_t byte2 = data[i+1];
+      uint8_t byte3 = data[i+2];
+
+      if (byte1 == 0xFF) continue; // Skip padding bytes
+
+      int serial_group_number = (byte1 >> 2) & 0x0F;
+      int is_start = byte1 & 0x01;
+      int addr = byte2 & 0x3F;
+      int duty = (byte3 >> 3) & 0x0F;
+      int freq = (byte3 >> 1) & 0x03;
+      int wave = byte3 & 0x01;
+
+      sendCommandToMotor(serial_group_number, addr, is_start, duty, freq, wave);
+    }
+  }
+}
+
+// This function sends the final command to the correct motor chain
+void sendCommandToMotor(int serial_group_number, int motor_addr, int is_start, int duty, int freq, int wave) {
+  if (serial_group_number >= subchain_num) return; // Safety check
+
+  if (is_start == 1) { // Start command (2 bytes)
+    uint8_t message[2];
+    message[0] = (motor_addr << 1) | is_start;
+    message[1] = 0x80 | (duty << 3) | (freq << 1) | wave;
+    serial_group[serial_group_number].write(message, 2);
+  } else { // Stop command (1 byte)
+    uint8_t message = (motor_addr << 1) | is_start;
+    serial_group[serial_group_number].write(&message, 1);
+  }
 }
