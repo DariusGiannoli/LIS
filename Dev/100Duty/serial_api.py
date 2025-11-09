@@ -28,9 +28,11 @@ class SERIAL_API:
     def send_command(self, addr, duty, freq, start_or_stop) -> bool:
         if self.serial_connection is None or not self.connected:
             return False
-        # Updated range checks
-        if addr < 0 or addr > 127 or duty < 0 or duty > 99 or freq < 0 or freq > 7 or start_or_stop not in [0, 1]:
-            print(f'Invalid command parameters: addr={addr}, duty={duty}, freq={freq}')
+        
+        # --- MODIFIED ---
+        # Updated range checks: addr > 31 (4 groups * 8 addresses)
+        if addr < 0 or addr > 31 or duty < 0 or duty > 99 or freq < 0 or freq > 7 or start_or_stop not in [0, 1]:
+            print(f'Invalid command parameters: addr={addr} (Valid: 0-31), duty={duty}, freq={freq}')
             return False
             
         command = self.create_command(int(addr), int(duty), int(freq), int(start_or_stop))
@@ -55,8 +57,10 @@ class SERIAL_API:
             duty = c.get('duty', -1)
             freq = c.get('freq', -1)
             start_or_stop = c.get('start_or_stop', -1)
-            # Updated range checks
-            if addr < 0 or addr > 127 or duty < 0 or duty > 99 or freq < 0 or freq > 7 or start_or_stop not in [0, 1]:
+            
+            # --- MODIFIED ---
+            # Updated range checks: addr > 31 (4 groups * 8 addresses)
+            if addr < 0 or addr > 31 or duty < 0 or duty > 99 or freq < 0 or freq > 7 or start_or_stop not in [0, 1]:
                 print(f'Invalid command in list: {c}')
                 return False
             command = command + self.create_command(int(addr), int(duty), int(freq), int(start_or_stop))
@@ -136,6 +140,7 @@ if __name__ == '__main__':
             # Start motor 0 at 50% duty (50) and freq index 3
             serial_api.send_command(0, 50, 3, 1) 
             time.sleep(2)
+            print("stop")
             serial_api.send_command(0, 80, 3, 0)
 
             

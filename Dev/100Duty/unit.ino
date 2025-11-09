@@ -11,6 +11,7 @@ int color_num = 5;
 int global_counter = 0;
 
 EspSoftwareSerial::UART serial_group[4];
+
 void setup() {
   Serial.begin(115200); // USB Serial for communication with PC
   
@@ -21,8 +22,11 @@ void setup() {
   for (int i = 0; i < subchain_num; ++i) {
     Serial.print("initialize uart on ");
     Serial.println(subchain_pins[i]);
-    // Init with 8-bit data, Even parity, 1 stop bit (8E1)
-    serial_group[i].begin(115200, SWSERIAL_8E1, -1, subchain_pins[i], false);
+    
+    // --- MODIFIED ---
+    // Init with 8-bit data, No parity, 1 stop bit (8N1)
+    serial_group[i].begin(115200, SWSERIAL_8N1, -1, subchain_pins[i], false);
+    
     serial_group[i].enableIntTx(false);
     if (!serial_group[i]) { // If the object did not initialize, then its configuration is invalid
       Serial.println("Invalid EspSoftwareSerial pin configuration, check config");
@@ -81,17 +85,22 @@ void processSerialData(uint8_t* data, int length) {
       uint8_t byte1 = data[i];
       uint8_t byte2 = data[i+1];
       uint8_t byte3 = data[i+2];
-      uint8_t byte4 = data[i+3]; // New 4th byte
+      uint8_t byte4 = data[i+3];
+      // New 4th byte
 
       if (byte1 == 0xFF) continue;
       // Skip if the first byte of the command is 0xFF (padding)
 
       int serial_group_number = (byte1 >> 2) & 0x0F;
       int is_start = byte1 & 0x01;
-      int addr = byte2 & 0x3F;     // 6-bit address
-      int duty = byte3 & 0x7F;     // 7-bit duty
-      int freq = byte4 & 0x07;     // 3-bit freq
-      // int wave = byte3 & 0x01;  // 'wave' is no longer used
+      int addr = byte2 & 0x3F;
+      // 6-bit address
+      int duty = byte3 & 0x7F;
+      // 7-bit duty
+      int freq = byte4 & 0x07;
+      // 3-bit freq
+      // int wave = byte3 & 0x01;
+      // 'wave' is no longer used
 
       
       sendCommand(serial_group_number, addr, is_start, duty, freq);
@@ -115,16 +124,17 @@ void processSerialData(uint8_t* data, int length) {
 void sendCommand(int serial_group_number, int motor_addr, int is_start, int duty, int freq) {
   
   if (serial_group_number < 0 || serial_group_number >= subchain_num) return;
-
   if (is_start == 1) { // Start command, THREE bytes
     uint8_t message[3];
     message[0] = (motor_addr << 1) | is_start; // Byte 1: Address + Start
-    message[1] = 0x80 | (duty & 0x7F);         // Byte 2: Data + 7-bit Duty
-    message[2] = 0x80 | (freq & 0x07);         // Byte 3: Data + 3-bit Freq
+    message[1] = 0x80 |
+    (duty & 0x7F);         // Byte 2: Data + 7-bit Duty
+    message[2] = 0x80 | (freq & 0x07);
+    // Byte 3: Data + 3-bit Freq
     serial_group[serial_group_number].write(message, 3);
-    
   } else { // Stop command, only one byte
-    uint8_t message = (motor_addr << 1) | is_start; // Byte 1: Address + Stop
+    uint8_t message = (motor_addr << 1) | is_start;
+    // Byte 1: Address + Stop
     serial_group[serial_group_number].write(&message, 1);
   }
 }

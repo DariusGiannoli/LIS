@@ -1,5 +1,4 @@
-/* 
- * File:   main.c
+/* * File:   main.c
  * Author: MasonC
  *
  * Created on November 8, 2022, 10:19 PM
@@ -49,12 +48,14 @@
  #define _XTAL_FREQ  32000000     // Set clock frequency 
  
  uint8_t buffer = 0;//uart recv buffer
- uint8_t parity = 0;//uart recv parity
+ // --- REMOVED ---
+ // uint8_t parity = 0;//uart recv parity
  uint8_t uart_recv_flag = 0;
  
  uint8_t duty_index = 0; // 0-15 maps to PWM duty cycle 0-100%;
- uint8_t duty_cycle_array[] = {0,1,2,3,5,6,9,12,16,21,27,35,46,59,77,99};
- uint8_t duty_cycle = 0;
+ // --- REMOVED duty_cycle_array ---
+ // uint8_t duty_cycle_array[] = {0,1,2,3,5,6,9,12,16,21,27,35,46,59,77,99};
+ uint8_t duty_cycle = 0; // Will now hold the 0-99 value directly
  uint8_t freq_index = 3; // 0-7 maps to frequency {123, 145, 170, 200, 235, 275, 322, 384} Hz;
  
  //uint8_t PR_val[] = {127, 107, 91, 78, 66, 56, 48, 40}; // PR2 values for frequencies;
@@ -65,7 +66,15 @@
  uint8_t duty_flag = 0;
  // Index into sine table
  uint8_t index = 0;
- uint8_t state = 0; //is the board being addressed by the controller
+ 
+ // --- MODIFIED STATE ---
+ // state = 0: Idle
+ // state = 1: Addressed, waiting for Data Byte 1 (Duty)
+ // state = 2: Got Duty, waiting for Data Byte 2 (Freq)
+ uint8_t state = 0; 
+ 
+ // --- NEW VARIABLE ---
+ uint8_t temp_duty = 0; // To store duty while waiting for freq
  
  // neopixel color
  uint8_t color_index = 0;
@@ -121,8 +130,11 @@
      BAUD1CON = 0b00001000; // 16 bit SPBRG   BRG16 = 1
      SP1BRGH = 0;
      SP1BRGL = 68; // 115.2k baud rate
-     TX9 = 1; //enable 9bit transmission
-     RX9 = 1; //enable 9-bit recv
+     
+     // --- REMOVED ---
+     // TX9 = 1; //enable 9bit transmission
+     // RX9 = 1; //enable 9-bit recv
+     
      RCIE = 1; //receive interrupt enable
      //IDLEN = 1; // Idle inhibits the CPU clk
  
@@ -137,68 +149,100 @@
     
      return addr_byte;
  }
- uint8_t getParity(uint8_t n)
- { //return the parity of n. if odd, return 1, even, return 0
-     uint8_t parity = 0;
-     while (n)
-     {
-         parity = !parity;
-         n = n & (n - 1);
-     }
-     return (parity & 0b1);
- }
+ 
+ // --- REMOVED ---
+ // The getParity() function has been removed.
  
  void UART_Write(uint8_t data) {
      while(!TRMT){};
      
-     TX9D = (getParity(data) & 0b1);
+     // --- REMOVED ---
+     // TX9D = (getParity(data) & 0b1);
      TX1REG = data;
      
  }
  
+ // --- COMPLETELY NEW UART_processing FUNCTION ---
  void UART_processing(){
-     if(getParity(buffer) != parity) return; //drop packet 
-     if((buffer >> 7) != 0b1){ //addr byte recved
-         uint8_t addr = (buffer >> 1); //get addr
-         uint8_t start = (buffer & 0b1); //get start/stop
-         if(addr != 0){ //not the current address
-             state = 0;// if state = 1 but the byte after is not data byte, then the unit should reset, to let commands go through.
-             --addr; //decrease addr
-             UART_Write(make_addr_byte(start, addr)); //send
-             return;
-         }
-         else{ //the current addr
-             state = start; 
-             if(start == 0){
-                 TMR2ON = 0;//ccp enable 
-                 TRISA0 = 1;
-                 TRISA1 = 1;
-                 duty_index = 0;
-             }
-             return;
-         }
-     
-     }
-     else { //data byte received
-         if(state == 0){ //previous data byte not address to this board
-                 while(!TRMT){};
-                 TX9D = parity & 0b1;
-                 TX1REG = buffer;//transmit directly
-                 return;
-         }
-         else{ //data byte addressed to this board
-             TRISA1 = 0;
-             TRISA0 = 0;
-             T2CON = 0b00000101;
-             freq_index = (buffer & 0b111);
-             duty_index = (buffer & 0b1111000) >> 3;
-             duty_cycle = duty_cycle_array[duty_index];
-             PR2 = PR_val[freq_index]; //load freq
-             state = 0;//state flipped to 0 again
-             return;
-         }
-     }
- }
+    // --- REMOVED ---
+    // if(getParity(buffer) != parity) return; //drop packet 
+
+    // --- 1. ADDRESS BYTE LOGIC ---
+    // This part handles "waking up" or "stopping"
+    // An Address Byte has its 7th bit as 0
+    if((buffer >> 7) != 0b1){ //addr byte recved
+        uint8_t addr = (buffer >> 1); //get addr
+        uint8_t start = (buffer & 0b1); //get start/stop
+        
+        if(addr != 0){ //not the current address
+            state = 0; // Not for us, reset state
+            --addr; //decrease addr
+            UART_Write(make_addr_byte(start, addr)); //send
+            return;
+        }
+        else{ //the current addr
+            if(start == 0){
+                // STOP Command
+                state = 0; 
+                TMR2ON = 0;//ccp disable 
+                TRISA0 = 1;
+                TRISA1 = 1;
+                duty_index = 0;
+                duty_cycle = 0; // Ensure duty cycle is zeroed
+            } else {
+                // START Command
+                state = 1; // Move to state 1: "Awaiting Data Byte 1 (Duty)"
+            }
+            return;
+        }
+    }
+    
+    // --- 2. DATA BYTE LOGIC ---
+    // This part handles the data *after* being woken up
+    // A Data Byte has its 7th bit as 1
+    else { //data byte received
+        switch(state) {
+            case 0: // We are not addressed, just forward the byte
+                while(!TRMT){};
+                // --- REMOVED --- (Parity bit)
+                // TX9D = parity & 0b1;
+                TX1REG = buffer;//transmit directly
+                break;
+                
+            case 1: // We are addressed, expecting Data Byte 1 (Duty)
+                temp_duty = (buffer & 0b01111111); // Store 7-bit duty
+                state = 2; // Move to state 2: "Awaiting Data Byte 2 (Freq)"
+                // Do NOT forward the byte, it has been consumed
+                break;
+                
+            case 2: // We are addressed, expecting Data Byte 2 (Freq)
+                // Get 3-bit frequency
+                freq_index = (buffer & 0b00000111); 
+                
+                // --- APPLY ALL SETTINGS ---
+                TRISA1 = 0;
+                TRISA0 = 0;
+                T2CON = 0b00000101;
+                
+                duty_cycle = temp_duty; // Get the stored duty cycle
+                if(duty_cycle > 99) duty_cycle = 99; // Cap at 99
+
+                // Map 0-99 duty to 0-15 for LED color
+                duty_index = (duty_cycle * 16) / 100; 
+
+                PR2 = PR_val[freq_index]; //load freq
+                
+                state = 0;// Transaction complete, reset state to idle
+                // Do NOT forward the byte, it has been consumed
+                break;
+                
+            default: // Should not happen, reset
+                state = 0;
+                break;
+        }
+        return;
+    }
+}
  
  void CCP_processing(){
      // update CWG and CCP statuses based on the current index
@@ -240,7 +284,6 @@
  
  void getColor(uint8_t duty_index, uint8_t color[3]) {
      // Ensure the duty_index is within the expected range
-     if (duty_index < 0) duty_index = 0;
      if (duty_index > 15) duty_index = 15;
  
      switch (duty_index) {
@@ -268,7 +311,10 @@
  void __interrupt() ISR(void) {
          if (RCIF) {
              RCIF = 0; // Clear The Flag
-             parity = RX9D; //read the 9th parity
+             
+             // --- REMOVED ---
+             // parity = RX9D; //read the 9th parity
+             
              buffer = RC1REG; // Read The Received Data Buffer
              UART_processing();
              uart_recv_flag = 1;
