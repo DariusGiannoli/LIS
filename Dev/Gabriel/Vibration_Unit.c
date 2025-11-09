@@ -1,16 +1,19 @@
+/* * File:   main.c
+ * Author:  MasonC (updated)
+ * Note:    Duty now uses 5 bits (0..31) mapped to 0..99
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include "neopixel_control.h"
 
 // PIC16F18313 Configuration Bit Settings
-
 // CONFIG1
-#pragma config FEXTOSC = OFF
-#pragma config RSTOSC  = HFINT32   // HFINTOSC (1MHz)
-#pragma config CLKOUTEN = OFF
+#pragma config FEXTOSC = OFF     // Oscillator not enabled
+#pragma config RSTOSC  = HFINT32 // HFINTOSC (32 MHz)
+#pragma config CLKOUTEN= OFF
 #pragma config CSWEN   = OFF
 #pragma config FCMEN   = OFF
-
 // CONFIG2
 #pragma config MCLRE   = ON
 #pragma config PWRTE   = OFF
@@ -21,11 +24,9 @@
 #pragma config PPS1WAY = OFF
 #pragma config STVREN  = ON
 #pragma config DEBUG   = OFF
-
 // CONFIG3
 #pragma config WRT     = OFF
 #pragma config LVP     = OFF
-
 // CONFIG4
 #pragma config CP      = OFF
 #pragma config CPD     = OFF
@@ -34,193 +35,220 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define _XTAL_FREQ  32000000
+#define _XTAL_FREQ 32000000u
 
-// Masks du data-byte (MSB=1) : [6:2]=duty(5b), [1:0]=freq(2b)
-#define DUTY_MASK  0x7C
-#define FREQ_MASK  0x03
+// UART
+static volatile uint8_t buffer = 0;
+static volatile uint8_t uart_recv_flag = 0;
 
-uint8_t buffer = 0;
-uint8_t parity = 0;        // 9e bit reçu (RX9D)
-uint8_t uart_recv_flag = 0;
+// Duty/Frequency state
+// duty_cycle is 0..99 after mapping 5-bit duty
+static volatile uint8_t duty_cycle = 0;     // 0..99
+static volatile uint8_t duty_index  = 0;    // 0..15 for LED color only
+static volatile uint8_t freq_index  = 3;    // 0..7 -> PR2 from table below
+static const uint8_t PR_val[8] = {85, 72, 60, 52, 44, 37, 32, 27};
 
-uint8_t duty_index = 0;    // 0..31
-const uint8_t duty_cycle_lut_5bit[32] = {
-    0, 0, 0, 1, 2, 3, 4, 5, 7, 8, 10, 13, 15, 18, 20, 23,
-    27, 30, 34, 38, 42, 46, 50, 55, 60, 65, 70, 76, 82, 88, 94, 99
-};
-uint8_t duty_cycle = 0;
+// Flags & ISR helpers
+static volatile uint8_t ccp_flag = 0;
+static volatile uint8_t cwg_flag = 0;
+static volatile uint8_t duty_flag = 0;
+static volatile uint8_t index     = 0;
 
-// 4 fréquences (2 bits)
-uint8_t freq_index = 1;
-const uint8_t PR_val[4] = {
-    72,  // ~145 Hz
-    52,  // ~200 Hz
-    37,  // ~275 Hz
-    27   // ~384 Hz
-};
+// Byte framing state machine
+// state 0 = idle/not addressed
+// state 1 = got START for addr==0, expect Data Byte 1 (5-bit duty)
+// state 2 = got duty, expect Data Byte 2 (freq index)
+static volatile uint8_t state = 0;
 
-uint8_t ccp_flag = 0;
-uint8_t cwg_flag = 0;
-uint8_t duty_flag = 0;
-uint8_t index = 0;
-uint8_t state = 0; // 1 si la carte est "sélectionnée" (après START)
+// Temp store for 5-bit duty before mapping
+static volatile uint8_t temp_duty5 = 0;
 
-// Couleur neopixel (indicatif)
-uint8_t color_index = 0;
-uint8_t color[] = {0,0,0};
+// neopixel color
+static uint8_t color_index = 0;
+static uint8_t color[3]    = {0,0,0};
 
-void init_ccp_cwg(void) {
+// ---------- Helpers ----------
+static inline uint8_t make_addr_byte(uint8_t start, uint8_t addr){
+    uint8_t addr_byte = 0;
+    addr_byte |= (start & 0x1u);
+    addr_byte |= (uint8_t)(addr << 1);
+    return addr_byte;
+}
+
+// Map 5-bit (0..31) to 0..99 with rounding
+static inline uint8_t map5bit_to_0_99(uint8_t v){
+    if(v > 31u) v = 31u;
+    // round( v * 99 / 31 ) using integer math
+    uint16_t x = (uint16_t)v * 99u + 15u; // +15 ~= /2 for rounding
+    return (uint8_t)(x / 31u);
+}
+
+static void UART_Write(uint8_t data){
+    while(!TRMT) {;}
+    TX1REG = data;
+}
+
+// ---------- Peripherals ----------
+static void init_ccp_cwg(void){
+    // Disable outputs during setup
     TRISA0 = 1;
     TRISA1 = 1;
-    ANSELA = 0;
-    WPUA   = 0;
 
-    // PPS CWG -> RA1/RA0
+    ANSELA = 0;   // digital
+    WPUA   = 0;   // no weak pullups
+
+    // PPS: CWG outputs on RA1 (CWG1A) and RA0 (CWG1B)
     RA1PPS = 0b01000; // CWG1A
     RA0PPS = 0b01001; // CWG1B
 
-    // CCP1 PWM (FMT=1)
+    // CCP1 PWM, FMT=1
     CCP1CON = 0b10011111;
     CCP1IE  = 1;
 
-    GIE  = 1;
-    PEIE = 1;
-
+    // Timer2
+    T2CON = 0b00000001; // prescale set, TMR2 off for now
+    PR2   = PR_val[freq_index];
     TMR2IE = 1;
 
-    // Timer2 prescaler 1:4, pas encore démarré
-    T2CON = 0b00000001;
-    PR2   = PR_val[freq_index];
-
-    // CWG
-    CWG1CON0 = 0b01000100; // half bridge, disable
-    CWG1CON1 = 0;          // A non-inv, B inv
-    CWG1DAT  = 0b00000011; // entrée depuis CCP1
-    CWG1AS0  = 0b01111000;
-    CWG1DBR  = 0;
-    CWG1DBF  = 0;
-    CWG1CLKCON = 1;        // HFINTOSC
+    // CWG configuration
+    CWG1CON0   = 0b01000100; // Half-bridge, disabled for now
+    CWG1CON1   = 0;          // A non-invert, B invert
+    CWG1DAT    = 0b00000011; // input from CCP1
+    CWG1AS0    = 0b01111000; // shutdown config
+    CWG1DBR    = 0;
+    CWG1DBF    = 0;
+    CWG1CLKCON = 1;          // HFINTOSC
     CWG1CON0bits.EN = 1;
+
+    // Interrupts
+    PEIE = 1;
+    GIE  = 1;
 
     __delay_us(100);
 }
 
-void usart_init() {
-    TRISA5 = 1; // RX
-    TRISA2 = 1; // TX
+static void usart_init(void){
+    TRISA5 = 1;  // RX
+    TRISA2 = 1;  // TX
+
     ANSELA = 0;
 
-    RXPPS  = 0b00101; // RX sur RA5
-    RA2PPS = 0b10100; // TX sur RA2
+    RXPPS  = 0b00101; // RA5 -> RX
+    RA2PPS = 0b10100; // TX -> RA2
 
     RC1STA   = 0b10010000; // SPEN=1, CREN=1
     TX1STA   = 0b00100100; // BRGH=1, TXEN=1
     BAUD1CON = 0b00001000; // BRG16=1
-    SP1BRGH  = 0;
-    SP1BRGL  = 68;         // 115200 bauds @ Fosc configuré
 
-    TX9 = 1;  // TX 9 bits (parité envoyée dans TX9D)
-    RX9 = 1;  // RX 9 bits (parité lue dans RX9D)
-    RCIE = 1; // interruption RX
+    SP1BRGH  = 0;
+    SP1BRGL  = 68;         // 115200 baud @ 32MHz
+
+    RCIE = 1;              // RX interrupt
 
     __delay_us(100);
 }
 
-uint8_t make_addr_byte(uint8_t start, uint8_t addr){
-    uint8_t addr_byte = 0;
-    addr_byte |= (start & 0b1);
-    addr_byte |= (addr << 1);
-    return addr_byte;
-}
-
-uint8_t getParity(uint8_t n) {
-    // retourne parité(data): 1 si odd, 0 si even
-    uint8_t p = 0;
-    while (n) { p = !p; n = n & (n - 1); }
-    return (p & 0b1);
-}
-
-void UART_Write(uint8_t data) {
-    while(!TRMT){};
-    // EVEN parity : TX9D = parity(data)
-    TX9D   = (getParity(data) & 0b1);
-    TX1REG = data;
-}
-
-void UART_processing(){
-    // Vérif parité (even). Si ESP n'est pas en 8E1, ça va tout dropper !
-    if(getParity(buffer) != parity) return;
-
-    if((buffer >> 7) != 0b1){ // octet d'adresse (MSB=0)
+// ---------- Protocol handling ----------
+static void UART_processing(void){
+    // Address byte: MSB==0
+    if((buffer >> 7) == 0){
         uint8_t addr  = (buffer >> 1);
-        uint8_t start = (buffer & 0b1);
+        uint8_t start = (buffer & 0x1u);
+
         if(addr != 0){
-            state = 0;
+            state = 0;     // not for us -> forward with addr-1
             --addr;
             UART_Write(make_addr_byte(start, addr));
             return;
-        } else {
-            state = start;
+        }else{
             if(start == 0){
-                TMR2ON = 0;
-                TRISA0 = 1;
-                TRISA1 = 1;
-                duty_index = 0;
+                // STOP
+                state     = 0;
+                TMR2ON    = 0;     // stop PWM
+                TRISA0    = 1;     // tri-state outputs
+                TRISA1    = 1;
+                duty_cycle= 0;
+                duty_index= 0;
+            }else{
+                // START -> expect Data Byte 1 (5-bit duty)
+                state = 1;
             }
             return;
         }
-    } else { // data (MSB=1)
-        if(state == 0){
-            while(!TRMT){};
-            TX9D   = parity & 0b1;
-            TX1REG = buffer;
-            return;
-        } else {
-            TRISA1 = 0;
-            TRISA0 = 0;
-            T2CON  = 0b00000101; // start TMR2 (1:4)
+    }
+    // Data byte: MSB==1
+    else{
+        switch(state){
+            case 0: // not addressed -> forward raw
+                UART_Write(buffer);
+                break;
 
-            // [6:2]=duty(5b), [1:0]=freq(2b)
-            freq_index = (buffer & FREQ_MASK);           // 0..3
-            duty_index = (buffer & DUTY_MASK) >> 2;      // 0..31
+            case 1: // expect duty (5 bits in b[4:0])
+                temp_duty5 = (uint8_t)(buffer & 0x1Fu); // 0..31
+                state = 2;
+                break;
 
-            duty_cycle = duty_cycle_lut_5bit[duty_index];
-            PR2 = PR_val[freq_index];
+            case 2: // expect frequency index (3 bits in b[2:0])
+            {
+                freq_index = (uint8_t)(buffer & 0x07u);
 
-            state = 0;
-            return;
+                // Apply settings
+                TRISA1 = 0;
+                TRISA0 = 0;
+
+                // Turn on TMR2 (prescale/postscale previously set)
+                T2CON  = 0b00000101; // ensure TMR2ON=1 with desired prescale
+                PR2    = PR_val[freq_index];
+
+                // Map 5-bit duty to 0..99
+                duty_cycle = map5bit_to_0_99(temp_duty5);
+                if(duty_cycle > 99u) duty_cycle = 99u;
+
+                // For LED color: 0..15 from 0..99
+                duty_index = (uint8_t)(((uint16_t)duty_cycle * 16u) / 100u);
+                if(duty_index > 15u) duty_index = 15u;
+
+                state = 0; // transaction complete
+            }   break;
+
+            default:
+                state = 0;
+                break;
         }
+        return;
     }
 }
 
-void CCP_processing(){
-    // Fenêtrage CWG sur index 0..199
-    if((index < duty_cycle) || (index >= 100 && index < (duty_cycle + 100))){
-        if (cwg_flag == 0){
+// ---------- PWM/Bridge drive ----------
+static void CCP_processing(void){
+    // CWG polarity switching based on duty window within a 200-tick frame
+    if( (index < duty_cycle) || (index >= 100 && index < (uint8_t)(100 + duty_cycle)) ){
+        if(cwg_flag == 0){
             CWG1CON0bits.EN = 0;
-            CWG1CON1bits.POLB = 0; // A/B opposés
+            CWG1CON1bits.POLB = 0;  // A/B opposite
             CWG1CON0bits.EN = 1;
             cwg_flag = 1;
         }
-    } else {
-        if (cwg_flag == 1){
+    }else{
+        if(cwg_flag == 1){
             CWG1CON0bits.EN = 0;
-            CWG1CON1bits.POLB = 1; // A/B identiques
+            CWG1CON1bits.POLB = 1;  // A/B same
             CWG1CON0bits.EN = 1;
             cwg_flag = 0;
         }
     }
 
-    // Amplitude via CCP (plein / quasi-nul)
+    // CCP duty block
     if(index < duty_cycle){
-        if (duty_flag == 0){
+        if(duty_flag == 0){
+            // "high" duty slice
             CCPR1H = PR_val[freq_index];
             CCPR1L = 0x00;
             duty_flag = 1;
         }
-    } else {
-        if (duty_flag == 1){
+    }else{
+        if(duty_flag == 1){
+            // "low" duty slice (very small)
             CCPR1H = 0x00;
             CCPR1L = 64;
             duty_flag = 0;
@@ -228,59 +256,58 @@ void CCP_processing(){
     }
 }
 
-// Palette existante (16 couleurs) : map 32 -> 16
-void getColor(uint8_t duty_index_5bit, uint8_t color[3]) {
-    uint8_t idx16 = (duty_index_5bit >> 1);
-    if (idx16 > 15) idx16 = 15;
-    switch (idx16) {
-        case 0:  color[0]=0;   color[1]=0;   color[2]=0;   break;
-        case 1:  color[0]=0;   color[1]=32;  color[2]=32;  break;
-        case 2:  color[0]=0;   color[1]=64;  color[2]=64;  break;
-        case 3:  color[0]=0;   color[1]=128; color[2]=128; break;
-        case 4:  color[0]=0;   color[1]=255; color[2]=255; break;
-        case 5:  color[0]=0;   color[1]=255; color[2]=128; break;
-        case 6:  color[0]=0;   color[1]=255; color[2]=0;   break;
-        case 7:  color[0]=128; color[1]=255; color[2]=0;   break;
-        case 8:  color[0]=255; color[1]=255; color[2]=0;   break;
-        case 9:  color[0]=255; color[1]=128; color[2]=0;   break;
-        case 10: color[0]=255; color[1]=0;   color[2]=0;   break;
-        case 11: color[0]=255; color[1]=0;   color[2]=128; break;
-        case 12: color[0]=255; color[1]=0;   color[2]=255; break;
-        case 13: color[0]=128; color[1]=0;   color[2]=255; break;
-        case 14: color[0]=64;  color[1]=0;   color[2]=255; break;
-        case 15: color[0]=255; color[1]=255; color[2]=255; break;
-        default: color[0]=0;   color[1]=0;   color[2]=0;   break;
+static void getColor(uint8_t di, uint8_t out[3]){
+    if(di > 15) di = 15;
+    switch(di){
+        case 0:  out[0]=0;   out[1]=0;   out[2]=0;   break;
+        case 1:  out[0]=0;   out[1]=32;  out[2]=32;  break;
+        case 2:  out[0]=0;   out[1]=64;  out[2]=64;  break;
+        case 3:  out[0]=0;   out[1]=128; out[2]=128; break;
+        case 4:  out[0]=0;   out[1]=255; out[2]=255; break;
+        case 5:  out[0]=0;   out[1]=255; out[2]=128; break;
+        case 6:  out[0]=0;   out[1]=255; out[2]=0;   break;
+        case 7:  out[0]=128; out[1]=255; out[2]=0;   break;
+        case 8:  out[0]=255; out[1]=255; out[2]=0;   break;
+        case 9:  out[0]=255; out[1]=128; out[2]=0;   break;
+        case 10: out[0]=255; out[1]=0;   out[2]=0;   break;
+        case 11: out[0]=255; out[1]=0;   out[2]=128; break;
+        case 12: out[0]=255; out[1]=0;   out[2]=255; break;
+        case 13: out[0]=128; out[1]=0;   out[2]=255; break;
+        case 14: out[0]=64;  out[1]=0;   out[2]=255; break;
+        case 15: out[0]=255; out[1]=255; out[2]=255; break;
+        default: out[0]=0;   out[1]=0;   out[2]=0;   break;
     }
 }
 
-void __interrupt() ISR(void) {
-    if (RCIF) {
+// ---------- Interrupts ----------
+void __interrupt() ISR(void){
+    if(RCIF){
         RCIF = 0;
-        parity = RX9D;
         buffer = RC1REG;
         UART_processing();
         uart_recv_flag = 1;
-    }
-    else if(TMR2IF){
+    }else if(TMR2IF){
         TMR2IF = 0;
-        index = index + 1;
+        index++;
         if(index == 200) index = 0;
         ccp_flag = 1;
-    }
-    else if(CCP1IF){
+    }else if(CCP1IF){
         CCP1IF = 0;
     }
 }
 
-int main(int argc, char** argv) {
+// ---------- Main ----------
+int main(void){
     init_ccp_cwg();
     usart_init();
     SPI_Init();
 
-    while(1) {
-        if (uart_recv_flag) {
+    // Main loop
+    for(;;){
+        if(uart_recv_flag){
             uart_recv_flag = 0;
-            if (color_index != duty_index){
+            // update neopixel color only when the level bucket changes
+            if(color_index != duty_index){
                 color_index = duty_index;
                 getColor(duty_index, color);
                 sendColor_SPI(color[0], color[1], color[2]);
@@ -291,4 +318,6 @@ int main(int argc, char** argv) {
             ccp_flag = 0;
         }
     }
+    // not reached
+    return 0;
 }
