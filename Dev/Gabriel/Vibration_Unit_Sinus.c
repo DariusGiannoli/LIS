@@ -193,6 +193,10 @@ static void UART_processing(void){
                 PR2    = PR_val[freq_index];
 
                 duty_cycle = map5bit_to_0_99(temp_duty5);
+                // Boost ~4/π pour égaler la fondamentale du carré
+                uint16_t boosted = ((uint16_t)duty_cycle * 127 + 50) / 100; // arrondi
+                if (boosted > 99) boosted = 99;
+                duty_cycle = (uint8_t)boosted;
                 if(duty_cycle > 99u) duty_cycle = 99u;
 
                 duty_index = (uint8_t)(((uint16_t)duty_cycle * 16u) / 100u);
