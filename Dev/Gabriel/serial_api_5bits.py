@@ -134,5 +134,10 @@ if __name__ == '__main__':
             time.sleep(1.5)
             serial_api.send_command(addr, 25, 3, 0)
 
+                        # Autre essai: duty5 = 25 (~80%)
+            serial_api.send_command(addr, 30, 3, 1)
+            time.sleep(1.5)
+            serial_api.send_command(addr, 0, 3, 0)
+
             serial_api.disconnect_serial_device()
             time.sleep(1)
