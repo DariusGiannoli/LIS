@@ -70,7 +70,7 @@ def stress_stop_start(api, addr=0, duty=50, freq_idx=3,
 
 # ---------- exécution ----------
 if __name__ == "__main__":
-    from serial_api import SERIAL_API  # ou adapte si dans le même fichier
+    from archives.serial_api import SERIAL_API  # ou adapte si dans le même fichier
     api = SERIAL_API()
     devs = api.get_serial_devices()
     print("Ports:", devs)
