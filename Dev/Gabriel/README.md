@@ -26,29 +26,25 @@ The waveform bit W is in Byte 1 so that all high-level control flags (waveform, 
 
 ## main.c
 
-### Duty LUT
+### Duty mapping
 
-The duty code duty5 ∈ [0..31] is mapped to a perceptual 0–99% using a LUT derived from measured 4-bit data (16 points).
-A gamma+offset model was fitted on the 4-bit measurements, then used to generate this 32-step table:
+The duty code `duty5 ∈ [0..31]` is mapped linearly to a 0–99% duty cycle using:
 
 ```c
-static const uint8_t DUTY5_TO_PCT[32] = {
-  0,  0,  1,  1,  1,  2,  3,  4,
-  5,  6,  7,  9, 11, 13, 15, 18,
- 20, 24, 27, 30, 34, 38, 43, 48,
- 53, 58, 64, 70, 77, 84, 91, 99
-};
-```
+// duty_pct ≈ (duty5 / 32) * 100
+duty_pct = (uint8_t)(((uint16_t)duty5_raw * 100u) / 32u);
 
 So the effective duty percent is:
 
-$$\text{duty\_pct} = \text{DUTY5\_TO\_PCT}[\text{duty5\_}] \in [0,99]$$
+$$
+\text{duty_pct} = \left\lfloor \frac{100 \cdot \text{duty5}}{32} \right\rfloor \in [0,99]
+$$
 
 ### Sine waveform (wave = 1)
 
 The sine mode uses a signed 64-sample LUT:
-
 ```c
+
 #define SINE_LEN 64u
 static const int8_t SINE64_8[SINE_LEN] = {
    0,  12,  25,  37,  49,  60,  71,  81,
