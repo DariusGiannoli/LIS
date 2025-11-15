@@ -30,9 +30,9 @@ The waveform bit **W** is in Byte 1 so that all high-level control flags (wavefo
 
 The duty code `duty5 ∈ [0..31]` is mapped to an approximate percentage in `[0..100)` using a simple linear formula:
 
-$$
+```math
 \text{duty\_pct} \approx \frac{\text{duty5}}{32} \times 100
-$$
+```
 
 In firmware this is implemented with integer arithmetic as:
 
@@ -70,21 +70,21 @@ static const int8_t SINE64_8[SINE_LEN] = {
 
 Mathematically this approximates:
 
-$$
+```math
 s[k] \approx 127 \cdot \sin\left(2\pi \frac{k}{64}\right), \quad k = 0,\dots,63
-$$
+```
 
 Timer1 advances $k$ at a fixed step $\Delta t$, so the output is a discrete-time sinusoid of frequency:
 
-$$
+```math
 f = \frac{1}{T}, \quad T = 64 \cdot \Delta t
-$$
+```
 
 The motor drive amplitude is scaled using `duty_pct` and the instantaneous magnitude of the sine sample:
 
-$$
+```math
 A_\text{eff}(k) \propto \text{duty\_pct} \cdot \frac{|s[k]|}{127}
-$$
+```
 
 In code, this is implemented by:
 
@@ -102,14 +102,14 @@ The square mode uses Timer2 + CWG with a 200-step window per period (0–199) an
 
 Mathematically, for an ideal 50% square wave (same peak amplitude $A$):
 
-$$
+```math
 x_\text{square}(t) =
 \begin{cases}
 +A, & 0 \le t < T/2 \\
 -A, & T/2 \le t < T
 \end{cases}
 \quad \text{with } f = \frac{1}{T}
-$$
+```
 
 Here the effective amplitude $A$ is proportional to `duty_pct` (through the same PWM scaling logic as in sine mode).
 
@@ -163,16 +163,70 @@ if devs and api.connect_serial_device(devs[2]):
 
 ---
 
-## Mathematical comparison: square vs sine
+## Why Same Duty Feels Like Same Power
 
-| Quantity | Sine wave | Square wave (50% duty, ±A) |
-|----------|-----------|----------------------------|
-| Signal | $x_\text{sine}(t) = A \sin(2\pi f t)$ | $x_\text{square}(t) = A \cdot \text{sgn}(\sin(2\pi f t))$ |
-| RMS | $x_{\text{RMS,sine}} = \frac{A}{\sqrt{2}}$ | $x_{\text{RMS,square}} = A$ |
-| Avg. power | $P_\text{sine} \propto \frac{A^2}{2}$ | $P_\text{square} \propto A^2$ |
-| Power relation | For the same peak $A$: $P_\text{square} = 2 \cdot P_\text{sine}$ | |
-| Frequency | $f = \frac{1}{T}$ with $T$ the waveform period | |
-| Amplitude/offset | $A = \frac{x_{\max} - x_{\min}}{2}$, offset $= \frac{x_{\max} + x_{\min}}{2}$ | |
+### The Apparent Paradox
+
+For the **same peak amplitude** $A$, a square wave delivers twice the power of a sine wave:
+
+```math
+P_{\text{square}} = 2 \cdot P_{\text{sine}}
+```
+
+Yet when using the same `duty_pct` setting, both waveforms feel equally strong. Why?
+
+### The Solution: Different Amplitude Scaling
+
+**Sine Mode** — `duty_pct` **directly scales the amplitude**:
+
+```math
+A_{\text{sine}} = A_{\max} \cdot \frac{\text{duty\_pct}}{100}
+```
+
+The RMS voltage is:
+
+```math
+V_{\text{RMS,sine}} = \frac{A_{\text{sine}}}{\sqrt{2}} = \frac{A_{\max}}{\sqrt{2}} \cdot \frac{\text{duty\_pct}}{100}
+```
+
+Power delivered:
+
+```math
+P_{\text{sine}} \propto V_{\text{RMS,sine}}^2 = \frac{A_{\max}^2}{2} \cdot \left(\frac{\text{duty\_pct}}{100}\right)^2
+```
+
+**Square Mode** — `duty_pct` controls **PWM duty cycle** within each half-period. The 200-step window creates an **effective amplitude** through averaging:
+
+```math
+A_{\text{eff,square}} = A_{\max} \cdot \frac{\text{duty\_pct}}{100}
+```
+
+For a bipolar square wave with this effective amplitude:
+
+```math
+V_{\text{RMS,square}} = A_{\text{eff,square}} = A_{\max} \cdot \frac{\text{duty\_pct}}{100}
+```
+
+Power delivered:
+
+```math
+P_{\text{square}} \propto V_{\text{RMS,square}}^2 = A_{\max}^2 \cdot \left(\frac{\text{duty\_pct}}{100}\right)^2
+```
+
+### The Key Insight
+
+Both modes deliver the **same power** for the same `duty_pct`:
+
+```math
+\boxed{P_{\text{sine}} = P_{\text{square}} = A_{\max}^2 \cdot \left(\frac{\text{duty\_pct}}{100}\right)^2}
+```
+
+**Why?** Because:
+
+- **Sine mode**: `duty_pct` scales amplitude → naturally compensates for the $1/\sqrt{2}$ RMS factor
+- **Square mode**: `duty_pct` controls PWM duty cycle → creates a lower effective amplitude, compensating for the higher RMS efficiency
+
+The firmware uses the same `lra_set_amp(duty_pct)` function for both modes, ensuring perceptual equivalence by controlling **RMS voltage** (and thus power) rather than peak amplitude. This makes haptic feedback intensity consistent across waveform types.
 
 ---
 
