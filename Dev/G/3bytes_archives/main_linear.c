@@ -1,8 +1,7 @@
 /* Vibration_Unit.c — PIC16F18313 @ 32 MHz (XC8 v3.10, -O0)
- * [VERSION CORRIGEE ANTI-CHAUFFE]
  * Proto: Addr (MSB=0) → Data1 duty5 (MSB=1) → Data2 (MSB=1) = [1 0 0 W F2 F1 F0]
- * wave=1 : TRUE-SINE (Timer1 + LUT 64 signée)
- * wave=0 : SQUARE (CWG + fenêtrage)
+ * wave=1 : TRUE-SINE (Timer1 + LUT 64 signée, PWM ~40kHz fixe via Timer2, routage PPS RA0/RA1)
+ * wave=0 : SQUARE (CWG + fenêtrage 0..199, inversion polarité à mi-cycle, traitement en main loop)
  */
 
 #include <xc.h>
@@ -10,7 +9,7 @@
 #include "neopixel_control.h"   // définit _XTAL_FREQ=32000000, SPI_Init(), sendColor_SPI()
 
 // ==================== Config Bits (CORRIGÉS) ====================
-// MCLRE=OFF est IMPERATIF pour éviter que le PIC reste en reset (broches flottantes)
+// MCLRE=OFF est CRITIQUE pour éviter le flottement des broches au démarrage sur batterie
 #pragma config FEXTOSC=OFF, RSTOSC=HFINT32, CLKOUTEN=OFF, CSWEN=OFF, FCMEN=OFF
 #pragma config MCLRE=OFF, PWRTE=ON, WDTE=OFF, LPBOREN=OFF, BOREN=OFF, BORV=LOW, PPS1WAY=OFF, STVREN=ON, DEBUG=OFF
 #pragma config WRT=OFF, LVP=OFF, CP=OFF, CPD=OFF
@@ -20,7 +19,7 @@ static volatile uint8_t buffer = 0;
 static volatile uint8_t state  = 0;     // 0:addr, 1:duty, 2:wave+freq
 static volatile uint8_t wave_mode  = 1; // 1=sine, 0=square
 static volatile uint8_t duty5_raw  = 0; // 0..31
-static volatile uint8_t duty_pct   = 0; // 0..99
+static volatile uint8_t duty_pct   = 0; // 0..99 (approx (duty5_raw / 32) * 100)
 static volatile uint8_t freq_index = 3; // 0..7
 static volatile uint8_t uart_led_flag = 0;
 
@@ -45,16 +44,11 @@ static inline void getColor32(uint8_t idx32, uint8_t out[3]){
     }
 }
 
-// ==================== Mapping duty5 → % (0..99) ====================
-static const uint8_t DUTY5_TO_PCT[32] = {
-  0,  0,  1,  1,  1,  2,  3,  4,
-  5,  6,  7,  9, 11, 13, 15, 18,
- 20, 24, 27, 30, 34, 38, 43, 48,
- 53, 58, 64, 70, 77, 84, 91, 99
-};
-
 // ==================== PWM (Timer2 / CCP1) ====================
+// On utilise FMT=1 (right-aligned) en positionnant CCP1CON à 0b10011111.
+// Duty 10 bits: CCPR1H = duty[9:2], CCPR1L<7:6> = duty[1:0].
 static inline void set_pwm10(uint16_t dc10){
+    // pas de DC1B*, pas de FMT bitfield → écriture directe
     CCPR1H = (uint8_t)(dc10 >> 2);
     CCPR1L = (uint8_t)((dc10 & 0x3u) << 6);
 }
@@ -75,31 +69,39 @@ static const int8_t SINE64_8[SINE_LEN] = {
    -90, -81, -71, -60, -49, -37, -25, -12
 };
 
+// Fondamentales (Hz) et reloads Timer1 (tick = 1 µs, 64 échan.)
 static const uint16_t FREQ_HZ[8]   = {123,145,170,200,235,275,322,384};
 static const uint16_t T1_RELOAD[8] = {
-    (uint16_t)(65536u - 127u), (uint16_t)(65536u - 108u),
-    (uint16_t)(65536u -  92u), (uint16_t)(65536u -  78u),
-    (uint16_t)(65536u -  66u), (uint16_t)(65536u -  57u),
-    (uint16_t)(65536u -  49u), (uint16_t)(65536u -  41u)
+    (uint16_t)(65536u - 127u),
+    (uint16_t)(65536u - 108u),
+    (uint16_t)(65536u -  92u),
+    (uint16_t)(65536u -  78u),
+    (uint16_t)(65536u -  66u),
+    (uint16_t)(65536u -  57u),
+    (uint16_t)(65536u -  49u),
+    (uint16_t)(65536u -  41u)
 };
 
 static volatile uint8_t  phase_idx = 0;
 static volatile int8_t   last_sign = 0;
 static volatile uint16_t t1_reload = 0;
-static volatile uint16_t scale     = 0;
+static volatile uint16_t scale     = 0;  // 0..top
 
-// détacher CCP1 des pins & mettre RA0/RA1 à 0 (GND)
+// détacher CCP1 des pins & mettre RA0/RA1 à 0
 static inline void coast_both(void){
     RA1PPS = 0; LATAbits.LATA1 = 0;
     RA0PPS = 0; LATAbits.LATA0 = 0;
 }
 
+// route demi-cycle: + → RA1=1 et PWM sur RA0 ; − → RA0=1 et PWM sur RA1
 static inline void route_halfcycle(int8_t sign){
     if (sign > 0){
-        RA0PPS = CCP1_PPS_CODE; RA1PPS = 0;
+        RA0PPS = CCP1_PPS_CODE;  // PWM sur RA0
+        RA1PPS = 0;
         LATAbits.LATA1 = 1; LATAbits.LATA0 = 0;
     } else {
-        RA1PPS = CCP1_PPS_CODE; RA0PPS = 0;
+        RA1PPS = CCP1_PPS_CODE;  // PWM sur RA1
+        RA0PPS = 0;
         LATAbits.LATA0 = 1; LATAbits.LATA1 = 0;
     }
 }
@@ -113,10 +115,11 @@ static inline void t1_apply_reload(uint8_t fidx){
     T1CONbits.TMR1ON = 1;
 }
 
+// fixe l’amplitude 0..99 % → échelle 10 bits (top = 4*(PR2+1)-1)
 static inline void lra_set_amp(uint8_t pct){
     if (pct > 100) pct = 100;
-    uint16_t top = (uint16_t)(4u * ((uint16_t)PR2 + 1u) - 1u);
-    scale = (uint16_t)(( (uint32_t)top * (uint32_t)pct + 50u) / 100u);
+    uint16_t top = (uint16_t)(4u * ((uint16_t)PR2 + 1u) - 1u); // PR2=199 → top=799
+    scale = (uint16_t)(((uint32_t)top * (uint32_t)pct + 50u) / 100u);
     if (!scale){ coast_both(); set_pwm10(0); }
 }
 
@@ -125,7 +128,7 @@ static const uint8_t PR_val[8] = {85,72,60,52,44,37,32,27};
 static volatile uint8_t index200 = 0;
 static volatile uint8_t cwg_flag  = 0;
 static volatile uint8_t duty_flag = 0;
-static volatile uint8_t square_tick = 0;
+static volatile uint8_t square_tick = 0;   // flag main-loop
 
 static void square_processing(void){
     uint8_t on = (index200 < duty_pct) ||
@@ -149,7 +152,7 @@ static void square_processing(void){
         if (cwg_flag == 1){
             CWG1CON0bits.EN = 0;
             CWG1CON1bits.POLA = 0;
-            CWG1CON1bits.POLB = 1;
+            CWG1CON1bits.POLB = 1; // sorties identiques → annule la diff
             CWG1CON0bits.EN = 1;
             cwg_flag = 0;
         }
@@ -176,28 +179,33 @@ static void UART_processing(void){
             state = 0; return;
         }else{
             if (!start){
-                // ===== STOP SECURISE =====
+                // ================= STOP =================
+                // 1. Couper le Timer Sinus
                 T1CONbits.TMR1ON = 0; PIE1bits.TMR1IE = 0;
                 
-                // 1. Force 0V
+                // 2. Verrouillage physique à 0V (GND)
                 coast_both(); 
                 set_pwm10(0);
-                
+
+                // 3. Couper le Timer Carré
                 T2CONbits.TMR2ON = 0; TMR2IE = 0;
                 
-                // 2. Coupe le CWG pour éviter le DC holding
+                // 4. Désactiver le module CWG
+                // IMPORTANT : Ne PAS réassigner RA1PPS/RA0PPS ici.
+                // On laisse les pins en GPIO Low (grâce à coast_both).
                 CWG1CON0bits.EN = 0; 
-                // NE PAS ASSIGNER RA1PPS ici !
                 
+                // 5. Reset des états
                 duty_pct = 0; cwg_flag = 0; duty_flag = 0; square_tick = 0;
                 state = 0;
+                // ========================================
             }else{
                 state = 1; // attendre duty
             }
             return;
         }
     }else{
-        // DATA
+        // DATA (MSB=1)
         if (state == 0){
             UART_Write(buffer); return;
         }else if (state == 1){
@@ -208,25 +216,25 @@ static void UART_processing(void){
             wave_mode  = (d2 >> 3) & 0x01u;
             freq_index = d2 & 0x07u;
 
-            // Utilisation de votre table d'origine
-            duty_pct = DUTY5_TO_PCT[duty5_raw & 0x1Fu];
+            // duty_pct approx calculation
+            duty_pct = (uint8_t)(((uint16_t)duty5_raw * 100u) / 32u);
+
             uart_led_flag = 1;
 
             if (wave_mode){
-                // ===== SINE =====
+                // ===== TRUE-SINE =====
                 T2CONbits.TMR2ON = 0;
                 T2CONbits.T2CKPS = 0b00; // 1:1
                 PR2 = 199; set_pwm10(0);
                 TMR2 = 0; TMR2IF = 0; T2CONbits.TMR2ON = 1;
 
-                CCP1CON = 0b10011111; 
+                CCP1CON = 0b10011111; // PWM mode
 
-                // CWG OFF, PPS direct
-                CWG1CON0bits.EN = 0;
-                coast_both();
+                CWG1CON0bits.EN = 0; // CWG OFF
+                coast_both();        // Pins controlled by PPS below (or ISR)
 
                 T1CON = 0;
-                T1CONbits.T1CKPS = 0b11;
+                T1CONbits.T1CKPS = 0b11; // 1:8 -> 1 us
                 PIR1bits.TMR1IF = 0; PIE1bits.TMR1IE = 1;
                 phase_idx = 0; last_sign = 0;
                 lra_set_amp(duty_pct);
@@ -234,13 +242,13 @@ static void UART_processing(void){
             }else{
                 // ===== SQUARE =====
                 T1CONbits.TMR1ON = 0; PIE1bits.TMR1IE = 0;
-                coast_both();
+                coast_both();   
 
                 CCP1CON = 0b10011111;
 
-                // CWG ON - C'est ici seulement qu'on l'active
+                // C'est ICI et SEULEMENT ICI qu'on connecte le CWG
                 RA1PPS = 0b01000; RA0PPS = 0b01001; 
-                CWG1CON0bits.EN = 1;
+                CWG1CON0bits.EN = 1; 
 
                 T2CONbits.TMR2ON = 0;
                 T2CONbits.T2CKPS = 0b01; // 1:4
@@ -272,26 +280,31 @@ static void pwm_cwg_init(void){
     TRISAbits.TRISA0 = 0;
     TRISAbits.TRISA1 = 0;
 
-    CCP1CON = 0b10011111;
+    // CCP1 PWM, format right-aligned (FMT=1 via valeur binaire)
+    CCP1CON = 0b10011111;  // FMT=1, PWM
     set_pwm10(0);
 
+    // Timer2 par défaut → PWM ~40 kHz (utilisé en SINE)
     T2CON = 0;
-    T2CONbits.T2CKPS = 0b00;
+    T2CONbits.T2CKPS = 0b00;  // 1:1
     PR2 = 199; TMR2 = 0; TMR2IF = 0; T2CONbits.TMR2ON = 1;
 
-    // CWG Config
-    CWG1CLKCON = 1; CWG1DAT = 0b00000011; 
+    // CWG pour SQUARE (source = CCP1)
+    // RA1PPS = 0b01000; RA0PPS = 0b01001; // NE PAS ASSIGNER MAINTENANT
+    CWG1CLKCON = 1; CWG1DAT = 0b00000011; // source = CCP1
     CWG1CON1 = 0; CWG1AS0 = 0b01111000;
     CWG1DBR = 0; CWG1DBF = 0;
     
-    // --- SECURITE INIT ---
-    // RA1PPS/RA0PPS PAS ENCORE ASSIGNÉS (Restent en GPIO)
+    // --- CORRECTION INIT ---
     CWG1CON0 = 0b01000100; 
-    CWG1CON0bits.EN = 0;   // Démarrage ETEINT
-    coast_both();          // Sorties forcées à 0
+    CWG1CON0bits.EN = 0;   // START A 0 (Pas de DC)
+    
+    // Sécurité additionnelle
+    coast_both();
 
-    TMR2IF = 0; TMR2IE = 0;
-    PIR1bits.TMR1IF = 0; PIE1bits.TMR1IE = 0;
+    // IT
+    TMR2IF = 0; TMR2IE = 0;                     // activé en SQUARE
+    PIR1bits.TMR1IF = 0; PIE1bits.TMR1IE = 0;   // activé en SINE
 
     PEIE = 1; GIE = 1;
     __delay_us(100);
@@ -304,13 +317,15 @@ void __interrupt() ISR(void){
         if (RC1STAbits.FERR){ volatile uint8_t junk=RC1REG; (void)junk; RCIF=0; return; }
         RCIF=0; buffer=RC1REG; UART_processing();
     }
-    else if (PIR1bits.TMR1IF){
+    else if (PIR1bits.TMR1IF){ // TRUE-SINE tick
         PIR1bits.TMR1IF = 0;
         if (!wave_mode) return;
 
+        // reload
         TMR1H = (uint8_t)(t1_reload >> 8);
         TMR1L = (uint8_t)(t1_reload & 0xFF);
 
+        // phase suivante
         uint8_t i = phase_idx + 1u; if (i >= SINE_LEN) i = 0; phase_idx = i;
         int8_t  s8 = SINE64_8[i];
         int8_t  sgn = (s8 > 0) ? +1 : ((s8 < 0) ? -1 : last_sign);
@@ -321,12 +336,16 @@ void __interrupt() ISR(void){
         if (sgn != last_sign){
             coast_both(); route_halfcycle(sgn); last_sign = sgn;
         }
+
+        // amplitude : |s| (0..127) * scale / 128
         uint16_t mag = (uint16_t)(s8 >= 0 ? s8 : -s8);
         uint32_t tmp = (uint32_t)scale * (uint32_t)mag;
-        uint16_t duty_fwd = (uint16_t)((tmp + 64u) >> 7);
-        uint16_t top = (uint16_t)(4u * ((uint16_t)PR2 + 1u) - 1u);
+        uint16_t duty_fwd = (uint16_t)((tmp + 64u) >> 7); // /128 arrondi
+
+        // converti en duty effectif 10 bits (top = 4*(PR2+1)-1)
+        uint16_t top = (uint16_t)(4u * ((uint16_t)PR2 + 1u) - 1u); // PR2=199 → 799
         if (duty_fwd >= top) duty_fwd = top;
-        set_pwm10(top - duty_fwd);
+        set_pwm10(top - duty_fwd); // selon pont, inverse si besoin
     }
     else if (TMR2IF){
         TMR2IF = 0;
@@ -339,12 +358,12 @@ void __interrupt() ISR(void){
 
 // ==================== Main ====================
 int main(void){
-    // --- BLOC SECURITE IMMEDIATE (ANTI-CHAUFFE) ---
-    LATA = 0;             // Tout à 0V
-    TRISA = 0b00111100;   // RA0/RA1 en Sortie
-    ANSELA = 0;           // Tout numérique
-    CWG1CON0 = 0;         // Générateur éteint
-    // ----------------------------------------------
+    // --- BLOC SECURITE DEMARRAGE (CORRECTION DC) ---
+    LATA = 0;             // Force toutes les sorties à 0V
+    TRISA = 0b00111100;   // RA0, RA1 en SORTIE (donc 0V grace à LATA)
+    ANSELA = 0;           // Désactive analogique
+    CWG1CON0 = 0;         // Assure que CWG est OFF
+    // -----------------------------------------------
 
     usart_init();
     pwm_cwg_init();
@@ -353,6 +372,7 @@ int main(void){
     set_pwm10(0);
 
     for(;;){
+        // LED hors ISR (timing WS2812)
         if (uart_led_flag){
             uart_led_flag = 0;
             if (color_index != duty5_raw){
@@ -363,6 +383,7 @@ int main(void){
                 INTCONbits.GIE = gie;
             }
         }
+        // Square fenêtrage en main loop
         if (square_tick){
             square_processing();
             square_tick = 0;

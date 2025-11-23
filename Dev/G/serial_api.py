@@ -134,14 +134,14 @@ if __name__ == '__main__':
         addr = 0
 
         # START sinus (wave=1) à duty5=15, freq=3
-        api.send_command(addr, duty=20, freq=3, start_or_stop=1, wave=1)
+        api.send_command(addr, duty=30, freq=3, start_or_stop=1, wave=1)
         time.sleep(1.2)
         # STOP
         api.send_command(addr, duty=0,  freq=3, start_or_stop=0, wave=1)
         print("finish")
-
+        time.sleep(0.1)
         # START carré (wave=0) à duty5=25, freq=3
-        api.send_command(addr, duty=20, freq=3, start_or_stop=1, wave=0)
+        api.send_command(addr, duty=30, freq=3, start_or_stop=1, wave=0)
         time.sleep(1.0)
         # STOP
         api.send_command(addr, duty=0,  freq=3, start_or_stop=0, wave=0)
