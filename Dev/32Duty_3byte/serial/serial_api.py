@@ -133,36 +133,15 @@ if __name__ == '__main__':
     if devs and api.connect_serial_device(devs[2]):
         addr = 0
 
+        time.sleep(0.5)
+        print("send")
         # START sinus (wave=1) à duty5=15, freq=3
-        api.send_command(addr, duty=20, freq=3, start_or_stop=1, wave=1)
-        time.sleep(1.2)
-        # STOP
-        api.send_command(addr, duty=0,  freq=3, start_or_stop=0, wave=1)
-        print("finish")
+        api.send_command(0, duty=20, freq=3, start_or_stop=1, wave=0)
+        time.sleep(2)
+        api.send_command(0, duty=15, freq=3, start_or_stop=0, wave=0)
 
-        # START carré (wave=0) à duty5=25, freq=3
-        api.send_command(addr, duty=20, freq=3, start_or_stop=1, wave=0)
-        time.sleep(1.0)
-        # STOP
-        api.send_command(addr, duty=0,  freq=3, start_or_stop=0, wave=0)
-        print("finish square")
+         # Envoi liste de commandes
 
         api.disconnect_serial_device()
-
-    # if devs and api.connect_serial_device(devs[2]):
-    #     # START les deux actuateurs en même temps
-    #     commands = [
-    #         {'addr': 0, 'duty': 20, 'freq': 3, 'start_or_stop': 1, 'wave': 1},  # sine
-    #         {'addr': 1, 'duty': 20, 'freq': 3, 'start_or_stop': 1, 'wave': 0}   # square
-    #     ]
-    #     api.send_command_list(commands)
-    #     time.sleep(1.5)
-        
-    #     # STOP les deux
-    #     commands_stop = [
-    #         {'addr': 0, 'duty': 0, 'freq': 3, 'start_or_stop': 0, 'wave': 1},
-    #         {'addr': 1, 'duty': 0, 'freq': 3, 'start_or_stop': 0, 'wave': 0}
-    #     ]
-    #     api.send_command_list(commands_stop)
         
         api.disconnect_serial_device()
