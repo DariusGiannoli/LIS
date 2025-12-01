@@ -1,0 +1,34 @@
+{
+    "profile_name": "gabriel",
+    "description": "",
+    "min_horizontal": 121.94008959688867,
+    "max_horizontal": 1281.8604150684541,
+    "min_vertical": 142.61448667517732,
+    "max_vertical": 1044.6288100310735,
+    "neutral_vertical": 744.0411413567407,
+    "smooth_alpha": 0.2,
+    "horizontal_linearization": {
+        "type": "polynomial",
+        "coefficients": [
+            -0.14247714260330346,
+            0.0013166161063572384,
+            -1.2845512835944282e-06,
+            7.602659843815678e-10
+        ],
+        "r_squared": 0.9992738804257916,
+        "max_error": 0.01461855833868464,
+        "mean_error": 0.00809093721675463
+    },
+    "vertical_linearization": {
+        "type": "polynomial",
+        "coefficients": [
+            1.2525970061476757,
+            -0.0021822534719057973,
+            2.986381823503527e-06,
+            -1.920632839986869e-09
+        ],
+        "r_squared": 0.9999659321952757,
+        "max_error": 0.0032849394354049766,
+        "mean_error": 0.001768456569839083
+    }
+}
