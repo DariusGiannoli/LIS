@@ -1,4 +1,4 @@
-# serial_api.py — 3-byte protocol (wave + mode), duty en 5 bits (0..31)
+# serial_api.py — 4-byte protocol (wave + mode), duty en 7 bits (0..100)
 import serial
 import serial.tools.list_ports
 import time
@@ -17,18 +17,19 @@ class SERIAL_API:
         # Par défaut: sinus (1). Mets 0 pour square.
         self.default_wave = 1
 
-    # ---------- Packing 3 bytes ----------
+    # ---------- Packing 4 bytes ----------
     def create_command(self, addr, duty, freq, start_or_stop, wave=None):
         """
-        Creates a 3-byte command (PC → ESP):
+        Creates a 4-byte command (PC → ESP):
           Byte1: [W][0][G3][G2][G1][G0][M1][M0]
                   W: wave (0=square, 1=sine)
                   G: group 0..3  (addr//8)
                   M: mode (00=STOP, 01=START, 10=SOFTSTOP, 11=RSVD) — ici 00/01 selon start_or_stop
           Byte2: [0][0][A5][A4][A3][A2][A1][A0]
                   A: sub-address 0..7 (addr%8) — extensible à 0..63
-          Byte3: [D4][D3][D2][D1][D0][F2][F1][F0]
-                  D: duty5  (0..31)
+          Byte3: [0][D6][D5][D4][D3][D2][D1][D0]
+                  D: duty7  (0..100) — 7 bits duty percentage
+          Byte4: [0][0][0][0][0][F2][F1][F0]
                   F: freq3  (0..7)
         """
         addr = int(addr); duty = int(duty); freq = int(freq)
@@ -40,7 +41,7 @@ class SERIAL_API:
 
         # bornes
         if not (0 <= addr <= 31): raise ValueError(f"addr out of range: {addr} (0..31)")
-        if not (0 <= duty <= 31): raise ValueError(f"duty5 out of range: {duty} (0..31)")
+        if not (0 <= duty <= 100): raise ValueError(f"duty out of range: {duty} (0..100)")
         if not (0 <= freq <= 7):  raise ValueError(f"freq3 out of range: {freq} (0..7)")
 
         group  = (addr // 8) & 0x0F
@@ -49,11 +50,12 @@ class SERIAL_API:
 
         b1 = (wave << 7) | (group << 2) | mode
         b2 = addr6
-        b3 = ((duty & 0x1F) << 3) | (freq & 0x07)
-        return bytearray([b1, b2, b3])
+        b3 = duty & 0x7F  # 7 bits for duty (0-100)
+        b4 = freq & 0x07  # 3 bits for freq
+        return bytearray([b1, b2, b3, b4])
 
     def send_command(self, addr, duty, freq, start_or_stop, wave=None) -> bool:
-        """Envoie UNE commande 3 octets. Param wave optionnel (0=square,1=sine)."""
+        """Envoie UNE commande 4 octets. Param wave optionnel (0=square,1=sine)."""
         if self.serial_connection is None or not self.connected:
             return False
         try:
@@ -61,13 +63,13 @@ class SERIAL_API:
             self.serial_connection.write(pkt)
             return True
         except Exception as e:
-            print(f"Serial failed to send command to #{addr} (duty5={duty}, freq={freq}, start={start_or_stop}, wave={wave}). Error: {e}")
+            print(f"Serial failed to send command to #{addr} (duty={duty}, freq={freq}, start={start_or_stop}, wave={wave}). Error: {e}")
             return False
 
     def send_command_list(self, commands) -> bool:
         """
         commands: liste de dicts avec clés:
-          - addr (0..31), duty (0..31), freq (0..7), start_or_stop (0/1), wave (0/1, optionnel)
+          - addr (0..31), duty (0..100), freq (0..7), start_or_stop (0/1), wave (0/1, optionnel)
         """
         if self.serial_connection is None or not self.connected:
             return False
@@ -133,18 +135,12 @@ if __name__ == '__main__':
     if devs and api.connect_serial_device(devs[2]):
         addr = 0
 
-        # START sinus (wave=1) à duty5=15, freq=3
-        api.send_command(addr, duty=25, freq=3, start_or_stop=1, wave=1)
+        # START sinus (wave=1) à duty=30%, freq=3
+        api.send_command(addr, duty=60, freq=3, start_or_stop=1, wave=0)
         time.sleep(1.2)
         # STOP
-        api.send_command(addr, duty=0,  freq=3, start_or_stop=0, wave=1)
+        api.send_command(addr, duty=0,  freq=3, start_or_stop=0, wave=0)
         print("finish")
         time.sleep(0.1)
-        # START carré (wave=0) à duty5=25, freq=3
-        api.send_command(addr, duty=25, freq=3, start_or_stop=1, wave=0)
-        time.sleep(1.0)
-        # STOP
-        api.send_command(addr, duty=0,  freq=3, start_or_stop=0, wave=0)
-        print("finish square")
 
         api.disconnect_serial_device()
