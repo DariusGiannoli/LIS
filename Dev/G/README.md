@@ -4,6 +4,9 @@
 
 This document details the technical implementation of the vibration control logic within the `main.c` firmware. It explains how the **Intensity Index (0-31)** input is mapped to the physical actuator output differently depending on the selected waveform mode (SINE or SQUARE).
 
+The following image shows the difference of control between square and sine : 
+![Duty Cycle Comparison](sine_square.png)
+
 ---
 
 ## 1. Perceptual Mapping (The "Duty" Input)
