@@ -128,41 +128,56 @@ class SERIAL_API:
 if __name__ == '__main__':
     api = SERIAL_API()
     devs = api.get_serial_devices()
-    print(devs)
+    
+    if not devs:
+        print("Aucun port série trouvé.")
+        exit(1)
 
-    if devs and api.connect_serial_device(devs[2]):
-        addr = 0
+    print("Ports disponibles :")
+    for k, d in enumerate(devs):
+        print(f"{k}: {d}")
 
-        # START sinus (wave=1) à duty5=15, freq=3
-        api.send_command(addr, duty=30, freq=3, start_or_stop=1, wave=1)
-        time.sleep(1.2)
-        # STOP
-        api.send_command(addr, duty=0,  freq=3, start_or_stop=0, wave=1)
-        print("finish")
-        time.sleep(0.1)
-        # START carré (wave=0) à duty5=25, freq=3
-        api.send_command(addr, duty=30, freq=3, start_or_stop=1, wave=0)
+    # Sélection du port (modifiez l'index '2' si nécessaire ou utilisez input comme avant)
+    # idx = int(input("Index port: "))
+    idx = 2 
+    
+    if idx < len(devs) and api.connect_serial_device(devs[idx]):
+        print(f"Démarrage synchronisé des moteurs 0 à 7 (Sine, Duty 16)...")
+
+        # 1. Création de la liste de commandes pour DEMARRER (0 à 7)
+        # On utilise une boucle pour générer les commandes
+        start_commands = []
+        for i in range(8): # de 0 à 7 inclus
+            cmd = {
+                'addr': i,          # Adresse 0, 1, ... 7
+                'duty': 16,         # Duty demandé : 16/31
+                'freq': 3,          # Fréquence standard (3 = ~170Hz)
+                'start_or_stop': 1, # 1 = START
+                'wave': 1           # 1 = SINE (Sinus)
+            }
+            start_commands.append(cmd)
+
+        # 2. Envoi groupé (Rafale)
+        api.send_command_list(start_commands)
+        
+        # 3. On laisse vibrer s secondes
         time.sleep(1.0)
-        # STOP
-        api.send_command(addr, duty=0,  freq=3, start_or_stop=0, wave=0)
-        print("finish square")
+
+        # 4. Création de la liste de commandes pour STOPPER (0 à 7)
+        stop_commands = []
+        for i in range(8):
+            cmd = {
+                'addr': i,
+                'duty': 0,          # Duty 0 pour l'arrêt
+                'freq': 3,
+                'start_or_stop': 0, # 0 = STOP
+                'wave': 1
+            }
+            stop_commands.append(cmd)
+
+        print("Arrêt synchronisé...")
+        api.send_command_list(stop_commands)
 
         api.disconnect_serial_device()
-
-    # if devs and api.connect_serial_device(devs[2]):
-    #     # START les deux actuateurs en même temps
-    #     commands = [
-    #         {'addr': 0, 'duty': 20, 'freq': 3, 'start_or_stop': 1, 'wave': 1},  # sine
-    #         {'addr': 1, 'duty': 20, 'freq': 3, 'start_or_stop': 1, 'wave': 0}   # square
-    #     ]
-    #     api.send_command_list(commands)
-    #     time.sleep(1.5)
-        
-    #     # STOP les deux
-    #     commands_stop = [
-    #         {'addr': 0, 'duty': 0, 'freq': 3, 'start_or_stop': 0, 'wave': 1},
-    #         {'addr': 1, 'duty': 0, 'freq': 3, 'start_or_stop': 0, 'wave': 0}
-    #     ]
-    #     api.send_command_list(commands_stop)
-        
-        api.disconnect_serial_device()
+    else:
+        print("Erreur de connexion.")
