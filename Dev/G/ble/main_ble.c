@@ -154,6 +154,8 @@ static void UART_processing(void){
                 COAST_MACRO(); set_pwm10_isr(0);
                 T2CONbits.TMR2ON = 0; TMR2IE = 0; CWG1CON0bits.EN = 0; 
                 duty_pct = 0; cwg_flag = 0; duty_flag = 0; square_tick = 0;
+                duty5_raw = 0;        // Reset duty for LED
+                uart_led_flag = 1;    // Trigger LED update (will turn off)
                 state = 0;
             }else{ state = 1; }
         }
