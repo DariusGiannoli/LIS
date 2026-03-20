@@ -141,10 +141,10 @@ if __name__ == '__main__':
         print("finish")
         time.sleep(0.1)
         # START carré (wave=0) à duty5=25, freq=3
-        api.send_command(addr, duty=30, freq=3, start_or_stop=1, wave=0)
+        api.send_command(1, duty=30, freq=3, start_or_stop=1, wave=0)
         time.sleep(1.0)
         # STOP
-        api.send_command(addr, duty=0,  freq=3, start_or_stop=0, wave=0)
+        api.send_command(1, duty=0,  freq=3, start_or_stop=0, wave=0)
         print("finish square")
 
         api.disconnect_serial_device()
