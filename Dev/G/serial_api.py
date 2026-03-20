@@ -131,21 +131,21 @@ if __name__ == '__main__':
     print(devs)
 
     if devs and api.connect_serial_device(devs[2]):
-        addr = 0
+        addr = 3
+        for addr in range(8):
+            # START sinus (wave=1) à duty5=15, freq=3
+            api.send_command(addr, duty=25, freq=3, start_or_stop=1, wave=0)
+            time.sleep(0.2)
+            # STOP
+            # api.send_command(addr, duty=20,  freq=3, start_or_stop=0, wave=1)
+            # print(f"finish addr {addr}")
+        
+        # api.send_command(addr, duty=20, freq=3, start_or_stop=1, wave=1)
+        # time.sleep(2)
+        
+        # api.send_command(addr, duty=20, freq=3, start_or_stop=0, wave=1)
 
-        # START sinus (wave=1) à duty5=15, freq=3
-        api.send_command(addr, duty=30, freq=3, start_or_stop=1, wave=1)
-        time.sleep(1.2)
-        # STOP
-        api.send_command(addr, duty=0,  freq=3, start_or_stop=0, wave=1)
-        print("finish")
-        time.sleep(0.1)
-        # START carré (wave=0) à duty5=25, freq=3
-        api.send_command(addr, duty=30, freq=3, start_or_stop=1, wave=0)
-        time.sleep(1.0)
-        # STOP
-        api.send_command(addr, duty=0,  freq=3, start_or_stop=0, wave=0)
-        print("finish square")
+        
 
         api.disconnect_serial_device()
 
