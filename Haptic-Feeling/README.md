@@ -1,1 +1,0 @@
-# Webner-Fetcher Law
