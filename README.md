@@ -1,3 +1,3 @@
 LIS Haptic related folder
 
-Darius Giannoli
+Darius Giannoli (darius.giannoli(at)epfl.ch)
