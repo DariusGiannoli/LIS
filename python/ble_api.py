@@ -1,7 +1,6 @@
 # ble_api.py — 3-byte protocol (wave + mode), duty 5 bits (0..31)
 import asyncio
 from bleak import BleakClient, BleakScanner
-import time
 
 # Modes (2 bits)
 MODE_STOP     = 0b00
@@ -10,6 +9,9 @@ MODE_START    = 0b01
 # Wave modes
 WAVE_SQUARE = 0
 WAVE_SINE   = 1
+
+ACTUATOR_COUNT = 32
+ACTUATORS_PER_GROUP = 8
 
 class BLE_API:
     def __init__(self):
@@ -26,12 +28,12 @@ class BLE_API:
         start_or_stop = int(start_or_stop) & 0x01
         wave = int(self.default_wave if wave is None else wave) & 0x01
 
-        if not (0 <= addr <= 31): raise ValueError(f"addr out of range: {addr}")
+        if not (0 <= addr < ACTUATOR_COUNT): raise ValueError(f"addr out of range: {addr}")
         if not (0 <= duty <= 31): raise ValueError(f"duty out of range: {duty}")
         if not (0 <= freq <= 7):  raise ValueError(f"freq out of range: {freq}")
 
-        group = (addr // 16) & 0x0F
-        addr6 = (addr % 16) & 0x3F
+        group = (addr // ACTUATORS_PER_GROUP) & 0x0F
+        addr6 = (addr % ACTUATORS_PER_GROUP) & 0x3F
         mode  = MODE_START if start_or_stop else MODE_STOP
 
         b1 = (wave << 7) | (group << 2) | mode
@@ -116,24 +118,3 @@ class BLE_API:
         except Exception as e:
             print(f"BLE disconnect failed: {e}")
         return False
-
-
-if __name__ == '__main__':
-    api = BLE_API()
-    
-    if not api.connect_ble_device():
-        print("Erreur de connexion.")
-        exit(1)
-
-    print("Démarrage moteurs 0-7 (Sine, Duty 16)...")
-    start_cmds = [{'addr': i, 'duty': 16, 'freq': 3, 'start_or_stop': 1, 'wave': 1} for i in range(8)]
-    api.send_command_list(start_cmds)
-    
-    time.sleep(1.0)
-
-    print("Arrêt...")
-    stop_cmds = [{'addr': i, 'duty': 0, 'freq': 3, 'start_or_stop': 0, 'wave': 1} for i in range(8)]
-    api.send_command_list(stop_cmds)
-    
-    time.sleep(0.3)
-    api.disconnect_ble_device()

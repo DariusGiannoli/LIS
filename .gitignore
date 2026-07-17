@@ -5,6 +5,7 @@ __pycache__/
 
 # Virtual env
 venv/
+.venv/
 .env/
 
 # Fichiers système
@@ -17,5 +18,9 @@ venv/
 *.tmp
 
 *.waveform_library
+
+# IDE settings
+.vscode/
+.idea/
 
 Experiment/Single_Comparison/images/
