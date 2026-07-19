@@ -146,3 +146,7 @@ the consolidated pre-hackathon implementation.
 ## Contact
 
 Darius Giannoli — darius.giannoli(at)epfl.ch
+
+### Acknowledgments
+
+Grateful for Dr. Yang Chen's supervision and for Gabriel Taieb for his contributions to this work
